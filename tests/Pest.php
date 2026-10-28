@@ -52,3 +52,5 @@ function ping(array $query = [], array $headers = []): Request
         }
     };
 }
+
+require_once __DIR__.'/OAuth/helpers.php';

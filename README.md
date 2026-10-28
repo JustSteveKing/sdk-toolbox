@@ -23,6 +23,7 @@ fakes, under different rules:
   - RFC 7396 Merge Patch, RFC 6902 JSON Patch, RFC 7578 multipart
   - RFC 9110 `Retry-After`, Idempotency-Key, RateLimit headers
   - RFC 8288 `Link` pagination
+  - OAuth 2.0: RFC 6749, 6750, 7636 (PKCE), 8628 (device flow), 9700
   - more to come: caching, deprecation
 
 Requires PHP 8.5. It's at 0.x and not on Packagist yet.
@@ -101,6 +102,55 @@ exceptions: new ProblemTypes([
 ```
 
 - No response at all is a `TransportException`.
+
+## Authentication
+
+`BearerToken`, `BasicAuth`, `HeaderKey` and `QueryKey` cover static
+credentials. For OAuth 2.0, describe the client once:
+
+```php
+$oauth = new OAuthClient(
+    tokenEndpoint: 'https://auth.acme.test/oauth/token',
+    clientId: $id,
+    clientSecret: $secret,                 // null for a public client (CLI, mobile)
+    authorizationEndpoint: 'https://auth.acme.test/oauth/authorize',
+);
+```
+
+Then pick a grant:
+
+- **Server to server:** `auth: new ClientCredentials($oauth, ['projects:read'])`.
+  It fetches a token when needed and caches it until shortly before it
+  expires.
+- **For a user (authorisation code with PKCE):**
+  - `$flow->start()` gives the URL to send the user to, plus a `state` and
+    a PKCE verifier to keep.
+  - `$flow->exchange($started, $code, $state)` checks the state and returns
+    the token.
+  - Then `auth: new RefreshingToken($oauth, "user:{$id}", $store)` keeps
+    that token fresh from then on.
+- **For a CLI (device flow, RFC 8628):** `$flow->start()` gives the code
+  and URL to show the user; `$flow->poll($code)` waits for them.
+
+Following the RFCs:
+
+- **Rejected tokens:** a 401 `invalid_token` gets new credentials and one
+  retry (RFC 6750 §3.1). A bare 401 counts too, since many APIs send one.
+- **Client secrets** are form-encoded before Basic encoding (RFC 6749
+  §2.3.1).
+- **Refresh tokens:** a new one replaces the old (§6).
+- **Token types:** only Bearer tokens are used (§7.1).
+- **PKCE** is S256 only.
+- **Device polling** waits the interval, adds 5s on `slow_down` and
+  doubles after a connection failure.
+- **TLS:** every OAuth endpoint must use it.
+
+Tokens live in a `TokenStore`: in memory, or any PSR-16 cache through
+`Psr16TokenStore`, which stores plain arrays and never `unserialize()`s.
+Refreshes run inside a `RefreshLock` and look in the store again once
+they hold it. So ten workers that find the same expired token refresh it
+once, and refresh-token rotation survives. Adapt your framework's lock;
+the interface's docblock has a Symfony example.
 
 ## Typed results
 
@@ -225,7 +275,8 @@ interface Middleware
 ```
 
 The order is retries, then the throttle, then your middleware in order,
-then authentication, then the HTTP client. So every retry is throttled,
+then authentication (including the one retry after a rejected token),
+then the HTTP client. So every retry is throttled,
 passes through your middleware and is authenticated afresh. Nothing before
 authentication, a logger included, sees the credentials. The client can be any PSR-18 client, an HTTPlug
 `PluginClient` included.

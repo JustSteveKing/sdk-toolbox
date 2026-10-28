@@ -6,6 +6,7 @@ namespace JustSteveKing\SdkToolbox;
 
 use Http\Discovery\Psr17FactoryDiscovery;
 use Http\Discovery\Psr18ClientDiscovery;
+use JustSteveKing\SdkToolbox\Auth\Authenticate;
 use JustSteveKing\SdkToolbox\Auth\Authenticator;
 use JustSteveKing\SdkToolbox\Errors\ExceptionMapper;
 use JustSteveKing\SdkToolbox\Errors\HttpException;
@@ -43,7 +44,6 @@ use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
 use Psr\Http\Message\RequestInterface;
-use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 
 /**
@@ -310,16 +310,7 @@ class Connector
         ];
 
         if ($this->auth !== null) {
-            $auth = $this->auth;
-            $middleware[] = new class($auth) implements Middleware
-            {
-                public function __construct(private readonly Authenticator $auth) {}
-
-                public function handle(RequestInterface $request, Next $next): ResponseInterface
-                {
-                    return $next->handle($this->auth->authenticate($request));
-                }
-            };
+            $middleware[] = new Authenticate($this->auth);
         }
 
         return new Pipeline($this->http, $middleware);

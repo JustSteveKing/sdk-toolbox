@@ -19,6 +19,7 @@
         </testsuite>
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
+            <directory>tests/OAuth</directory>
         </testsuite>
     </testsuites>
     <source>
