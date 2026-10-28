@@ -147,6 +147,7 @@ More in [Errors](docs/errors.md).
 | OAuth 2.0, server to server | `ClientCredentials` |
 | OAuth 2.0, for a user | `AuthorizationCode` with PKCE, then `RefreshingToken` |
 | OAuth 2.0, for a CLI | the device flow |
+| OAuth 2.0, registering at runtime | `ClientRegistration` (RFC 7591) |
 
 Credentials don't go over plain HTTP unless you say so. Tokens refresh once, even across processes.
 
@@ -162,7 +163,7 @@ foreach ($acme->paginate(new ListMembers, new CursorPagination('meta.next_cursor
 }
 ```
 
-Pagination follows `Link` headers, cursors, offsets, page numbers or Stripe's `starting_after`.
+Pagination follows `Link` headers, a next-page URL in the body, cursors, offsets, page numbers or Stripe's `starting_after`.
 
 More in [Results and pagination](docs/results-and-pagination.md).
 
@@ -212,7 +213,8 @@ More in [Testing](docs/testing.md).
 Verify incoming webhooks:
 
 - `new StandardWebhooks('whsec_...')`;
-- `new HmacWebhook($secret, header: 'X-Hub-Signature-256', prefix: 'sha256=')`, for GitHub-style signatures.
+- `new HmacWebhook($secret, header: 'X-Hub-Signature-256', prefix: 'sha256=')`, for GitHub-style signatures;
+- `TimestampedHmacWebhook::stripe($secret)`, and `::slack()` and `::ghost()`, for signatures over a timestamp and the body.
 
 Sign requests with RFC 9421 HTTP Message Signatures, and check bodies with Content-Digest.
 
