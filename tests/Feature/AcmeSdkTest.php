@@ -5,10 +5,12 @@ declare(strict_types=1);
 use JustSteveKing\SdkToolbox\Connector;
 use JustSteveKing\SdkToolbox\Errors\NotFoundException;
 use JustSteveKing\SdkToolbox\Errors\SdkException;
+use JustSteveKing\SdkToolbox\Errors\ServerException;
 use JustSteveKing\SdkToolbox\Errors\TransportException;
 use JustSteveKing\SdkToolbox\Errors\UnprocessableContentException;
 use JustSteveKing\SdkToolbox\Testing\FakeClient;
 use JustSteveKing\SdkToolbox\Testing\FakeResponse;
+use JustSteveKing\SdkToolbox\Testing\FakeTime;
 use JustSteveKing\SdkToolbox\Testing\StrayRequestException;
 use JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\Acme;
 use JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\OutOfCredit;
@@ -101,7 +103,7 @@ it('maps 422 to an unprocessable content exception carrying the problem', functi
 });
 
 it('never keeps the token in an exception', function (): void {
-    $http = new FakeClient(FakeResponse::problem(500, title: 'Boom'));
+    $http = new FakeClient(FakeResponse::problem(400, title: 'Boom'));
 
     try {
         new Acme('very-secret-token', $http)->projects()->get('prj_1');
@@ -111,16 +113,40 @@ it('never keeps the token in an exception', function (): void {
     }
 });
 
-it('turns a network failure into a transport exception', function (): void {
-    $http = new FakeClient(FakeResponse::networkError('Could not resolve host'));
+it('turns a network failure that outlasts the retries into a transport exception', function (): void {
+    $http = new FakeClient(...array_fill(0, 3, FakeResponse::networkError('Could not resolve host')));
+    $time = new FakeTime;
 
     try {
-        new Acme('t', $http)->projects()->get('prj_1');
+        new Acme('t', $http, $time, $time)->projects()->get('prj_1');
         $this->fail('Expected a TransportException');
     } catch (TransportException $e) {
         expect($e->network)->toBeTrue()
             ->and($e->getMessage())->toBe('Could not complete GET /v2/projects/prj_1: Could not resolve host');
     }
+
+    $http->assertSentCount(3);
+    expect($time->sleeps())->toHaveCount(2);
+});
+
+it('retries a failed read and returns the result when it recovers', function (): void {
+    $http = new FakeClient(
+        FakeResponse::problem(503, title: 'Down for a moment', headers: ['Retry-After' => '2']),
+        FakeResponse::json(['id' => 'prj_1', 'name' => 'Website']),
+    );
+    $time = new FakeTime;
+
+    $project = new Acme('t', $http, $time, $time)->projects()->get('prj_1');
+
+    expect($project->name)->toBe('Website')
+        ->and($time->sleeps())->toBe([2.0]);
+});
+
+it('does not retry a create that may have landed', function (): void {
+    $http = new FakeClient(FakeResponse::problem(502, title: 'Bad gateway'));
+
+    expect(fn () => new Acme('t', $http)->projects()->create('Docs'))->toThrow(ServerException::class);
+    $http->assertSentCount(1);
 });
 
 it('lets a stray request fail the test instead of becoming a transport error', function (): void {

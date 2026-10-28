@@ -26,6 +26,12 @@ class HttpException extends RuntimeException implements SdkException
 
     public readonly ResponseInterface $response;
 
+    /**
+     * Seconds the server asked to wait before trying again, from
+     * `Retry-After`, on any status that sent one (429 and 503 usually).
+     */
+    public readonly ?float $retryAfter;
+
     final public function __construct(
         Response $response,
         public readonly ?ProblemDetails $problem,
@@ -34,6 +40,7 @@ class HttpException extends RuntimeException implements SdkException
         $this->status = $response->status();
         $this->request = $redactor->request($response->request());
         $this->response = $response->psr();
+        $this->retryAfter = $response->retryAfter();
 
         parent::__construct(self::describe($response, $problem), $this->status);
     }

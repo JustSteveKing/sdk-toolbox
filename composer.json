@@ -1,7 +1,15 @@
 {
     "name": "juststeveking/sdk-toolbox",
     "description": "Build PHP SDKs on PSR-18, typed end to end, with the HTTP standards an API client should honour.",
-    "keywords": ["sdk", "api", "http", "psr-18", "psr-17", "rfc9457", "client"],
+    "keywords": [
+        "sdk",
+        "api",
+        "http",
+        "psr-18",
+        "psr-17",
+        "rfc9457",
+        "client"
+    ],
     "license": "MIT",
     "type": "library",
     "authors": [
@@ -13,6 +21,7 @@
     "require": {
         "php": "^8.5",
         "php-http/discovery": "^1.20",
+        "psr/clock": "^1.0",
         "psr/http-client": "^1.0.3",
         "psr/http-client-implementation": "^1.0",
         "psr/http-factory": "^1.1",
@@ -24,11 +33,13 @@
         "nyholm/psr7": "^1.8",
         "pestphp/pest": "^4.1",
         "phpstan/phpstan": "^2.1",
+        "psr/simple-cache": "^3.0",
         "symfony/http-client": "^8.0"
     },
     "suggest": {
         "guzzlehttp/guzzle": "A PSR-18 client, if your application doesn't already have one.",
-        "symfony/http-client": "A PSR-18 client, if your application doesn't already have one."
+        "symfony/http-client": "A PSR-18 client, if your application doesn't already have one.",
+        "psr/simple-cache": "To share rate-limit state between processes with Psr16RateLimitStore."
     },
     "autoload": {
         "psr-4": {

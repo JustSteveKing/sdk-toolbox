@@ -18,12 +18,22 @@ use JustSteveKing\SdkToolbox\Http\Response;
 use JustSteveKing\SdkToolbox\Middleware\Middleware;
 use JustSteveKing\SdkToolbox\Middleware\Next;
 use JustSteveKing\SdkToolbox\Middleware\Pipeline;
+use JustSteveKing\SdkToolbox\RateLimits\Throttle;
 use JustSteveKing\SdkToolbox\Redaction\Redactor;
 use JustSteveKing\SdkToolbox\Requests\HasBody;
 use JustSteveKing\SdkToolbox\Requests\HasHeaders;
 use JustSteveKing\SdkToolbox\Requests\HasQuery;
+use JustSteveKing\SdkToolbox\Requests\Idempotent;
 use JustSteveKing\SdkToolbox\Requests\Request;
+use JustSteveKing\SdkToolbox\Retries\IdempotencyKey;
+use JustSteveKing\SdkToolbox\Retries\Retry;
+use JustSteveKing\SdkToolbox\Retries\RetryPolicy;
+use JustSteveKing\SdkToolbox\Retries\RetryStrategy;
+use JustSteveKing\SdkToolbox\Time\Sleeper;
+use JustSteveKing\SdkToolbox\Time\SystemClock;
+use JustSteveKing\SdkToolbox\Time\SystemSleeper;
 use NoDiscard;
+use Psr\Clock\ClockInterface;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
@@ -38,8 +48,10 @@ use Psr\Http\Message\StreamFactoryInterface;
  * details, or hold one; either works, because nothing here relies on being
  * extended. It's immutable: the `with*()` methods return a changed copy.
  *
- * Requests go through the middleware in order, then the authenticator, then
- * the PSR-18 client. Bring your application's client, or leave it out and
+ * Requests go through the retry policy, the throttle if there is one, the
+ * middleware in order, the authenticator, then the PSR-18 client. So each
+ * retry is throttled, passes through every middleware and is
+ * authenticated afresh. Bring your application's client, or leave it out and
  * php-http/discovery finds an installed one.
  */
 class Connector
@@ -62,6 +74,9 @@ class Connector
      * @param  array<string, string|list<string>>  $headers  sent with every request; a request's own headers replace them
      * @param  string|null  $userAgent  your SDK's name and version, put ahead of the toolbox's own
      * @param  bool  $insecure  allow credentials over plain `http://`, which is refused by default
+     * @param  RetryStrategy  $retry  RetryPolicy::standard() unless told otherwise; RetryPolicy::none() turns retries off
+     * @param  Throttle|null  $throttle  wait for a spent rate limit to reset before sending, instead of collecting 429s
+     * @param  IdempotencyKey  $idempotencyKeys  how Idempotent requests format their key
      */
     public function __construct(
         string $baseUri,
@@ -75,6 +90,11 @@ class Connector
         ?RequestFactoryInterface $requests = null,
         ?StreamFactoryInterface $streams = null,
         bool $insecure = false,
+        private readonly RetryStrategy $retry = new RetryPolicy,
+        private readonly ?Throttle $throttle = null,
+        private readonly IdempotencyKey $idempotencyKeys = IdempotencyKey::Quoted,
+        private readonly ClockInterface $clock = new SystemClock,
+        private readonly Sleeper $sleeper = new SystemSleeper,
     ) {
         $this->baseUri = new BaseUri($baseUri);
 
@@ -132,7 +152,7 @@ class Connector
             throw TransportException::from($e, $psr, $this->redactor);
         }
 
-        return new Response($answer, $psr);
+        return new Response($answer, $psr, $this->clock);
     }
 
     /**
@@ -159,6 +179,12 @@ class Connector
             ...($request instanceof HasHeaders ? $request->headers() : []),
         ];
 
+        // One key per send(), kept by every retry of it: the request below is
+        // built once and the retry middleware resends this same object.
+        if ($request instanceof Idempotent) {
+            $headers['Idempotency-Key'] = $this->idempotencyKeys->header($request->idempotencyKey() ?? IdempotencyKey::generate());
+        }
+
         if ($request instanceof HasBody) {
             $body = $request->body();
             $psr = $psr->withBody($body->stream($this->streams));
@@ -176,6 +202,12 @@ class Connector
     public function withMiddleware(Middleware ...$middleware): static
     {
         return clone ($this, ['middleware' => [...$this->middleware, ...array_values($middleware)]]);
+    }
+
+    #[NoDiscard]
+    public function withRetry(RetryStrategy $retry): static
+    {
+        return clone ($this, ['retry' => $retry]);
     }
 
     #[NoDiscard]
@@ -218,7 +250,11 @@ class Connector
 
     private function pipeline(): Pipeline
     {
-        $middleware = $this->middleware;
+        $middleware = [
+            new Retry($this->retry, $this->clock, $this->sleeper),
+            ...($this->throttle === null ? [] : [$this->throttle]),
+            ...$this->middleware,
+        ];
 
         if ($this->auth !== null) {
             $auth = $this->auth;

@@ -10,59 +10,13 @@ use JustSteveKing\SdkToolbox\Connector;
 use JustSteveKing\SdkToolbox\Errors\InvalidRequestException;
 use JustSteveKing\SdkToolbox\Errors\ServerException;
 use JustSteveKing\SdkToolbox\Errors\TransportException;
-use JustSteveKing\SdkToolbox\Http\Method;
-use JustSteveKing\SdkToolbox\Http\Response;
 use JustSteveKing\SdkToolbox\Middleware\Middleware;
 use JustSteveKing\SdkToolbox\Middleware\Next;
-use JustSteveKing\SdkToolbox\Requests\HasHeaders;
-use JustSteveKing\SdkToolbox\Requests\HasQuery;
-use JustSteveKing\SdkToolbox\Requests\Request;
+use JustSteveKing\SdkToolbox\Retries\RetryPolicy;
 use JustSteveKing\SdkToolbox\Testing\FakeClient;
 use JustSteveKing\SdkToolbox\Testing\FakeResponse;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
-
-/**
- * @param  array<string, mixed>  $query
- * @param  array<string, string>  $headers
- * @return Request<Response>
- */
-function ping(array $query = [], array $headers = []): Request
-{
-    return new readonly class($query, $headers) implements HasHeaders, HasQuery, Request
-    {
-        /**
-         * @param  array<string, mixed>  $query
-         * @param  array<string, string>  $headers
-         */
-        public function __construct(private array $query, private array $headers) {}
-
-        public function method(): Method
-        {
-            return Method::Get;
-        }
-
-        public function path(): string
-        {
-            return '/ping';
-        }
-
-        public function query(): array
-        {
-            return $this->query;
-        }
-
-        public function headers(): array
-        {
-            return $this->headers;
-        }
-
-        public function result(Response $response): Response
-        {
-            return $response;
-        }
-    };
-}
 
 final class Tag implements Middleware
 {
@@ -112,7 +66,7 @@ it('lets a request replace default headers', function (): void {
 
 it('returns error responses from response() and throws them from send()', function (): void {
     $http = new FakeClient(FakeResponse::empty(503), FakeResponse::empty(503));
-    $connector = new Connector('https://api.example.com', http: $http);
+    $connector = new Connector('https://api.example.com', http: $http, retry: RetryPolicy::none());
 
     expect($connector->response(ping())->status())->toBe(503)
         ->and(fn () => $connector->send(ping()))->toThrow(ServerException::class);
@@ -141,7 +95,7 @@ it('authenticates with the usual schemes', function (): void {
 
 it('masks a custom key header and query parameter in transport errors', function (): void {
     $http = new FakeClient(FakeResponse::networkError('failed for https://api.example.com/ping?key_param=k2'));
-    $connector = new Connector('https://api.example.com', auth: new QueryKey('key_param', 'k2'), http: $http);
+    $connector = new Connector('https://api.example.com', auth: new QueryKey('key_param', 'k2'), http: $http, retry: RetryPolicy::none());
 
     try {
         $connector->response(ping());

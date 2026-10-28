@@ -45,6 +45,7 @@ arch('values are immutable')
     ->ignoring([
         'JustSteveKing\SdkToolbox\Http\Method',
         'JustSteveKing\SdkToolbox\Http\QueryString',
+        'JustSteveKing\SdkToolbox\Http\StructuredFields',
         'JustSteveKing\SdkToolbox\Bodies\EncodesJson',
         'JustSteveKing\SdkToolbox\Bodies\JsonPointer',
     ]);

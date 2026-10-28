@@ -7,6 +7,11 @@ namespace JustSteveKing\SdkToolbox\Http;
 use JsonException;
 use JustSteveKing\SdkToolbox\Errors\InvalidResponseException;
 use JustSteveKing\SdkToolbox\Errors\ProblemDetails;
+use JustSteveKing\SdkToolbox\RateLimits\RateLimit;
+use JustSteveKing\SdkToolbox\RateLimits\RateLimits;
+use JustSteveKing\SdkToolbox\Retries\RetryAfter;
+use JustSteveKing\SdkToolbox\Time\SystemClock;
+use Psr\Clock\ClockInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 
@@ -18,6 +23,7 @@ final readonly class Response
     public function __construct(
         private ResponseInterface $response,
         private RequestInterface $request,
+        private ClockInterface $clock = new SystemClock,
     ) {}
 
     public function status(): int
@@ -98,6 +104,32 @@ final readonly class Response
     public function problem(): ?ProblemDetails
     {
         return ProblemDetails::fromResponse($this);
+    }
+
+    /**
+     * The most restrictive rate-limit policy the response reported, if any.
+     */
+    public function rateLimit(): ?RateLimit
+    {
+        return RateLimits::mostRestrictive($this->response, $this->clock);
+    }
+
+    /**
+     * Every rate-limit policy the response reported.
+     *
+     * @return list<RateLimit>
+     */
+    public function rateLimits(): array
+    {
+        return RateLimits::read($this->response, $this->clock);
+    }
+
+    /**
+     * Seconds the server asked the client to wait, from `Retry-After`.
+     */
+    public function retryAfter(): ?float
+    {
+        return RetryAfter::from($this->response, $this->clock);
     }
 
     public function psr(): ResponseInterface

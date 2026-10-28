@@ -21,7 +21,8 @@ fakes, under different rules:
 - **A published standard wherever one exists:**
   - RFC 9457 errors, RFC 9110 method semantics
   - RFC 7396 Merge Patch, RFC 6902 JSON Patch, RFC 7578 multipart
-  - more to come: retries, rate limits, pagination, caching, deprecation
+  - RFC 9110 `Retry-After`, Idempotency-Key, RateLimit headers
+  - more to come: pagination, caching, deprecation
 
 Requires PHP 8.5. It's at 0.x and not on Packagist yet.
 
@@ -100,6 +101,69 @@ exceptions: new ProblemTypes([
 
 - No response at all is a `TransportException`.
 
+## Retries
+
+Retries are on by default, and they only repeat what RFC 9110 says is safe
+to repeat:
+
+| Outcome | Retried for |
+|---|---|
+| 408, 425, 429, 503: the server didn't process it | any method |
+| 500, 502, 504, or no response at all | GET, HEAD, OPTIONS, PUT, DELETE, and any request with an Idempotency-Key |
+| 409, "still in progress" in the Idempotency-Key draft | requests with an Idempotency-Key |
+| anything else (400, 401, 404, 422...) | never |
+
+Each wait honours `Retry-After` (seconds or any HTTP-date form). Without
+it, waits back off exponentially with jitter, up to a cap. A `Retry-After`
+longer than `maxRetryAfter` gives up instead of sleeping, and an optional
+deadline caps the whole sequence, waits included. A body that can't be
+rewound is never sent twice.
+
+```php
+retry: RetryPolicy::standard()->withMaxAttempts(5)->withDeadline(30.0),
+retry: RetryPolicy::none(),
+```
+
+When the retries run out, the exception carries `$e->retryAfter` if the
+server sent one. Pass any PSR-20 `clock` and a `sleeper`;
+`Testing\FakeTime` is both, and records every wait.
+
+### Idempotency-Key (experimental)
+
+Implement `Idempotent` on a request and the connector sends an
+Idempotency-Key. The key is a random UUID unless the request returns its
+own, and it stays the same across every retry of that send. That's what
+makes retrying a POST safe. The draft's format is a quoted string; pass
+`idempotencyKeys: IdempotencyKey::Bare` for APIs, Stripe among them, that
+take a bare token. Experimental: the draft is at -08 and its retry section
+is still open.
+
+## Rate limits
+
+`$response->rateLimit()` returns the most restrictive policy the response
+reported: remaining quota, limit, seconds until reset and window. It reads:
+
+- the IETF `RateLimit` and `RateLimit-Policy` fields (experimental: draft
+  -11 expires on 2026-11-24);
+- failing those, `X-RateLimit-*` or `RateLimit-Limit/Remaining/Reset`.
+  Resets in seconds, Unix timestamps (GitHub) and epoch milliseconds are
+  all understood.
+
+Malformed fields are ignored rather than half-read.
+
+To stop sending when the quota is spent, rather than collecting 429s,
+give the connector a `Throttle`:
+
+```php
+throttle: new Throttle(maxWait: 30.0),
+throttle: new Throttle(new Psr16RateLimitStore($cache)), // shared between processes
+```
+
+The next request to that host waits for the reset. If the reset is
+further off than `maxWait`, the throttle throws
+`RateLimitExceededException` without sending. A 429's `Retry-After` wins
+over the RateLimit fields, as the draft says.
+
 ## Middleware
 
 ```php
@@ -109,9 +173,10 @@ interface Middleware
 }
 ```
 
-Middleware runs in order, then authentication, then the HTTP client.
-Authentication runs last, so nothing earlier, a logger included, sees the
-credentials. The client can be any PSR-18 client, an HTTPlug
+The order is retries, then the throttle, then your middleware in order,
+then authentication, then the HTTP client. So every retry is throttled,
+passes through your middleware and is authenticated afresh. Nothing before
+authentication, a logger included, sees the credentials. The client can be any PSR-18 client, an HTTPlug
 `PluginClient` included.
 
 ## Testing
