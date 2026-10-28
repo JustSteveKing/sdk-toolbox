@@ -21,7 +21,7 @@ It needs PHP 8.3 or newer, and a PSR-18 client with PSR-17 factories. Most appli
 - `cuyz/valinor`, for mapping responses onto your own classes;
 - `open-telemetry/api`, for tracing.
 
-It's at 0.x and not on Packagist yet, so expect the odd change before 1.0.
+It's at 0.x, so expect the odd change before 1.0.
 
 ## Quick start
 

@@ -78,7 +78,7 @@ use Psr\SimpleCache\CacheInterface;
  */
 class Connector
 {
-    public const string VERSION = '0.1.0-dev';
+    public const string VERSION = '0.0.1';
 
     private readonly BaseUri $baseUri;
 
