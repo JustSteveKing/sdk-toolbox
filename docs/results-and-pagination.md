@@ -78,7 +78,7 @@ PHPStan knows that's a `Paginator<Member>`, so `$member` is a `Member`.
 | Strategy | For an API that... |
 |---|---|
 | `new LinkPagination` | sends `Link: <...>; rel="next"` (RFC 8288), as GitHub does |
-| `new NextUrlPagination('meta.pagination.next')` | puts the next page's URL in the body, as Django REST Framework, Ghost and Buttondown do; relative URLs resolve against the request |
+| `new NextUrlPagination('next')` | puts the next page's URL in the body, as Django REST Framework and Packagist's search do; relative URLs resolve against the request |
 | `new CursorPagination('meta.next_cursor', parameter: 'cursor')` | puts a cursor in the body and wants it back as a query parameter |
 | `new StartingAfterPagination` | says `has_more` and pages after the last item's ID, as Stripe does |
 | `new OffsetPagination(limit: 100)` | takes `offset` and `limit`; a short page is the last |

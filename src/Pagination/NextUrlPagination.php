@@ -13,7 +13,7 @@ use Psr\Http\Message\UriFactoryInterface;
 
 /**
  * The next page's URL in the body: `{"results": [...], "next": "https://..."}`,
- * as Django REST Framework, Buttondown and Ghost page. Stops when it's
+ * as Django REST Framework and Packagist's search page. Stops when it's
  * missing, null or empty.
  *
  * There's no standard for this; it's the body-borne version of a `Link`
