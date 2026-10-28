@@ -4,6 +4,10 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 
 ## [Unreleased]
 
+### Added
+
+- `problems` on `StatusExceptions`: a function that reads an API's own error shape into a `ProblemDetails`, so every status exception carries the API's message and codes. The errors guide's example for such APIs used to drop the message for every status but 401.
+
 ## [0.0.2] - 2026-10-28
 
 What building a real SDK on the toolbox, and researching others, showed it was missing. Everything already in 0.0.1 behaves as it did; the new options default to the old behaviour.

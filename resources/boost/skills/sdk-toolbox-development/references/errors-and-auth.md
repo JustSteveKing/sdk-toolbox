@@ -29,7 +29,7 @@ No response at all is `Errors\TransportException`.
   exceptions: new ProblemTypes(['https://api.test/problems/out-of-credit' => OutOfCredit::class]),
   ```
 
-- **For an API with its own error format** (`{"error": "..."}`), implement `Errors\ExceptionMapper::map(Response $response, Redactor $redactor): HttpException`. Build a `ProblemDetails` from the body yourself, and fall back to `(new StatusExceptions)->map($response, $redactor)`.
+- **For an API with its own error format** (`{"error": "..."}`), pass `exceptions: new Errors\StatusExceptions(problems: fn (Response $r): ?ProblemDetails => ...)`: the function reads the body into a `ProblemDetails` (put codes and tags in `extensions`), and every status exception carries it. Write an `Errors\ExceptionMapper` only to map some errors to your own exception classes, falling back to that `StatusExceptions`.
 
 Rules for your exception classes:
 

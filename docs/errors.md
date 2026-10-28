@@ -96,24 +96,30 @@ protected function describe(Response $response, ?ProblemDetails $problem): strin
 
 ### APIs without RFC 9457
 
-Plenty of APIs answer errors as `{"error": "..."}` or something of their own. Write an `ExceptionMapper` for them. It gets the `Response` and returns any `HttpException`, and can build a `ProblemDetails` from whatever the body holds:
+Most APIs answer errors in a shape of their own: `{"error": "..."}`, an `errors` array, a code and a tag. Give `StatusExceptions` a function that reads that shape into a `ProblemDetails`, and every status exception carries it, whatever the status:
 
 ```php
-final readonly class AcmeErrors implements ExceptionMapper
-{
-    public function map(Response $response, Redactor $redactor): HttpException
-    {
+parent::__construct(
+    baseUri: 'https://api.acme.test',
+    exceptions: new StatusExceptions(problems: function (Response $response): ?ProblemDetails {
         $body = json_decode($response->body(), true);
-        $message = is_array($body) && is_string($body['error'] ?? null) ? $body['error'] : null;
-        $problem = $message === null ? null : new ProblemDetails(title: $message, status: $response->status());
 
-        return match ($response->status()) {
-            401 => new UnauthorizedException($response, $problem, $redactor),
-            default => (new StatusExceptions)->map($response, $redactor),
-        };
-    }
-}
+        if (! is_array($body) || ! is_string($body['error'] ?? null)) {
+            return null;
+        }
+
+        return new ProblemDetails(
+            title: $body['error'],
+            status: $response->status(),
+            extensions: ['code' => $body['code'] ?? null],
+        );
+    }),
+);
 ```
+
+A 404 is still a `NotFoundException`, and `$e->problem->title` is the API's own message, which the exception's message uses too. Put anything else the body holds in `extensions`, and read it back with `$e->problem->extension('code')`. When the function returns null, the RFC 9457 problem is used, if the response has one.
+
+To map some of the API's errors to your own exceptions as well, write an `ExceptionMapper` and fall back to that `StatusExceptions` for the rest.
 
 ## Transport errors
 
