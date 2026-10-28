@@ -22,7 +22,7 @@ function member(string $id = 'm_1', string $role = 'owner'): array
 it('maps snake_case JSON onto a typed object', function (): void {
     $http = new FakeClient(FakeResponse::json(['data' => member()]));
 
-    $member = new Acme('t', $http)->send(new GetMember('m_1'));
+    $member = (new Acme('t', $http))->send(new GetMember('m_1'));
 
     expect($member)->toEqual(new Member('m_1', 'Ada', Role::Owner, new DateTimeImmutable('2026-01-05T09:00:00+00:00')));
 });
@@ -30,13 +30,13 @@ it('maps snake_case JSON onto a typed object', function (): void {
 it('ignores fields the model does not know, so a new API field breaks nothing', function (): void {
     $http = new FakeClient(FakeResponse::json(['data' => [...member(), 'shiny_new_field' => true]]));
 
-    expect(new Acme('t', $http)->send(new GetMember('m_1'))->displayName)->toBe('Ada');
+    expect((new Acme('t', $http))->send(new GetMember('m_1'))->displayName)->toBe('Ada');
 });
 
 it('maps a list', function (): void {
     $http = new FakeClient(FakeResponse::json(['data' => [member('m_1'), member('m_2', 'member')]]));
 
-    $members = new Acme('t', $http)->send(new ListMembers);
+    $members = (new Acme('t', $http))->send(new ListMembers);
 
     expect($members)->toHaveCount(2)
         ->and($members[1]->role)->toBe(Role::Member);
@@ -46,7 +46,7 @@ it('says where a response does not fit, in the API\'s own key', function (): voi
     $http = new FakeClient(FakeResponse::json(['data' => [...member(), 'display_name' => 42]]));
 
     try {
-        new Acme('t', $http)->send(new GetMember('m_1'));
+        (new Acme('t', $http))->send(new GetMember('m_1'));
         $this->fail('Expected a HydrationException');
     } catch (HydrationException $e) {
         expect($e->type)->toBe(Member::class)

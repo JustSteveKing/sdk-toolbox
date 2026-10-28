@@ -38,7 +38,7 @@ final class Tag implements Middleware
 it('runs middleware in order, and authentication after all of it', function (): void {
     Tag::$order = [];
     $http = new FakeClient(FakeResponse::empty(200));
-    $connector = new Connector('https://api.example.com', auth: new BearerToken('t'), http: $http)
+    $connector = (new Connector('https://api.example.com', auth: new BearerToken('t'), http: $http))
         ->withMiddleware(new Tag('first'), new Tag('second'));
 
     $response = $connector->response(ping());
@@ -76,20 +76,20 @@ it('refuses to send credentials without TLS unless told to', function (): void {
     expect(fn () => new Connector('http://api.example.com', auth: new BearerToken('t'), http: new FakeClient))
         ->toThrow(InvalidRequestException::class);
 
-    expect(new Connector('http://localhost:8080', auth: new BearerToken('t'), http: new FakeClient, insecure: true)->baseUri())
+    expect((new Connector('http://localhost:8080', auth: new BearerToken('t'), http: new FakeClient, insecure: true))->baseUri())
         ->toBe('http://localhost:8080/');
 });
 
 it('authenticates with the usual schemes', function (): void {
     $http = new FakeClient(FakeResponse::empty(200), FakeResponse::empty(200), FakeResponse::empty(200));
 
-    new Connector('https://api.example.com', auth: new BasicAuth('steve', 'pw'), http: $http)->response(ping());
+    (new Connector('https://api.example.com', auth: new BasicAuth('steve', 'pw'), http: $http))->response(ping());
     expect($http->last()?->getHeaderLine('Authorization'))->toBe('Basic '.base64_encode('steve:pw'));
 
-    new Connector('https://api.example.com', auth: new HeaderKey('X-Api-Key', 'k1'), http: $http)->response(ping());
+    (new Connector('https://api.example.com', auth: new HeaderKey('X-Api-Key', 'k1'), http: $http))->response(ping());
     expect($http->last()?->getHeaderLine('X-Api-Key'))->toBe('k1');
 
-    new Connector('https://api.example.com', auth: new QueryKey('api_key', 'k2'), http: $http)->response(ping(['q' => 'a', 'api_key' => 'someone-elses']));
+    (new Connector('https://api.example.com', auth: new QueryKey('api_key', 'k2'), http: $http))->response(ping(['q' => 'a', 'api_key' => 'someone-elses']));
     expect($http->last()?->getUri()->getQuery())->toBe('q=a&api_key=k2');
 });
 

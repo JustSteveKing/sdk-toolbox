@@ -85,19 +85,19 @@ final readonly class RetryPolicy implements RetryStrategy
     #[NoDiscard]
     public function withMaxAttempts(int $maxAttempts): self
     {
-        return clone ($this, ['maxAttempts' => $maxAttempts]);
+        return $this->copy(maxAttempts: $maxAttempts);
     }
 
     #[NoDiscard]
     public function withDeadline(?float $seconds): self
     {
-        return clone ($this, ['deadline' => $seconds]);
+        return $this->copy(deadline: $seconds, keepDeadline: false);
     }
 
     #[NoDiscard]
     public function withBackoff(float $baseDelay, float $maxDelay): self
     {
-        return clone ($this, ['baseDelay' => $baseDelay, 'maxDelay' => $maxDelay]);
+        return $this->copy(baseDelay: $baseDelay, maxDelay: $maxDelay);
     }
 
     public function delay(
@@ -143,6 +143,24 @@ final readonly class RetryPolicy implements RetryStrategy
         return in_array($status, self::ANY_METHOD, true)
             || ($repeatable && in_array($status, self::IDEMPOTENT_ONLY, true))
             || ($keyed && $status === 409);
+    }
+
+    private function copy(
+        ?int $maxAttempts = null,
+        ?float $baseDelay = null,
+        ?float $maxDelay = null,
+        ?float $deadline = null,
+        bool $keepDeadline = true,
+    ): self {
+        return new self(
+            maxAttempts: $maxAttempts ?? $this->maxAttempts,
+            baseDelay: $baseDelay ?? $this->baseDelay,
+            maxDelay: $maxDelay ?? $this->maxDelay,
+            jitter: $this->jitter,
+            maxRetryAfter: $this->maxRetryAfter,
+            deadline: $keepDeadline ? $this->deadline : $deadline,
+            random: $this->random,
+        );
     }
 
     private function backoff(int $attempt): float

@@ -65,9 +65,9 @@ it('parses strong and weak entity tags (8.8.3)', function (): void {
 });
 
 it('compares strongly: weak tags never match (8.8.3.2)', function (): void {
-    expect(new EntityTag('1')->matchesStrongly(new EntityTag('1')))->toBeTrue()
-        ->and(new EntityTag('1', true)->matchesStrongly(new EntityTag('1', true)))->toBeFalse()
-        ->and(new EntityTag('1')->matchesStrongly(new EntityTag('2')))->toBeFalse();
+    expect((new EntityTag('1'))->matchesStrongly(new EntityTag('1')))->toBeTrue()
+        ->and((new EntityTag('1', true))->matchesStrongly(new EntityTag('1', true)))->toBeFalse()
+        ->and((new EntityTag('1'))->matchesStrongly(new EntityTag('2')))->toBeFalse();
 });
 
 it('guards an update with the ETag it read', function (): void {

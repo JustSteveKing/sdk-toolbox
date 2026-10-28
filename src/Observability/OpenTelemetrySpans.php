@@ -53,13 +53,13 @@ final readonly class OpenTelemetrySpans implements Middleware
     #[NoDiscard]
     public function withRedactor(Redactor $redactor): self
     {
-        return clone ($this, ['redactor' => $redactor]);
+        return new self($this->tracers, $this->propagator, $redactor, $this->attempts);
     }
 
     #[NoDiscard]
     public function withAttempts(Attempts $attempts): self
     {
-        return clone ($this, ['attempts' => $attempts]);
+        return new self($this->tracers, $this->propagator, $this->redactor, $attempts);
     }
 
     public function handle(RequestInterface $request, Next $next): ResponseInterface

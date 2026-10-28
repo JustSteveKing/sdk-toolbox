@@ -41,7 +41,7 @@ it('holds one page at a time, however many pages there are', function (): void {
     $count = 0;
     $baseline = 0;
 
-    foreach (new Acme('t', $http)->withRetry(RetryPolicy::none())->paginate(new ListMembers, new CursorPagination) as $member) {
+    foreach ((new Acme('t', $http))->withRetry(RetryPolicy::none())->paginate(new ListMembers, new CursorPagination) as $member) {
         $count++;
 
         if ($count === 10 * $perPage) {

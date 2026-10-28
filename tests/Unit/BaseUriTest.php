@@ -6,7 +6,7 @@ use JustSteveKing\SdkToolbox\Errors\UnsafeUriException;
 use JustSteveKing\SdkToolbox\Http\BaseUri;
 
 it('appends paths to the base path rather than replacing it', function (string $path, string $expected): void {
-    expect(new BaseUri('https://api.example.com/v2')->resolve($path)->toString())->toBe($expected);
+    expect((new BaseUri('https://api.example.com/v2'))->resolve($path)->toString())->toBe($expected);
 })->with([
     'leading slash' => ['/applications', 'https://api.example.com/v2/applications'],
     'no leading slash' => ['applications/1', 'https://api.example.com/v2/applications/1'],
@@ -15,11 +15,11 @@ it('appends paths to the base path rather than replacing it', function (string $
 ]);
 
 it('works with a base that has no path', function (): void {
-    expect(new BaseUri('https://api.example.com')->resolve('/users')->toString())->toBe('https://api.example.com/users');
+    expect((new BaseUri('https://api.example.com'))->resolve('/users')->toString())->toBe('https://api.example.com/users');
 });
 
 it('refuses paths that would leave the base', function (string $path): void {
-    expect(fn () => new BaseUri('https://api.example.com/v2')->resolve($path))->toThrow(UnsafeUriException::class);
+    expect(fn () => (new BaseUri('https://api.example.com/v2'))->resolve($path))->toThrow(UnsafeUriException::class);
 })->with([
     'another host' => ['//evil.example/steal'],
     'absolute URL' => ['https://evil.example/steal'],

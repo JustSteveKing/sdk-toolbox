@@ -49,7 +49,7 @@ function signedBy(SigningKey $key, array $components, string $label): RequestInt
     $http = new FakeClient(FakeResponse::empty(200));
     $request = rfc9421Request();
 
-    new JustSteveKing\SdkToolbox\Middleware\Pipeline($http, [new SignRequests($key, $components, $label, clock: new FakeTime('@1618884473'), coverDigest: false)])->sendRequest($request);
+    (new JustSteveKing\SdkToolbox\Middleware\Pipeline($http, [new SignRequests($key, $components, $label, clock: new FakeTime('@1618884473'), coverDigest: false)]))->sendRequest($request);
 
     return $http->last() ?? throw new LogicException('Nothing sent');
 }
@@ -119,12 +119,12 @@ it('signs the body through Content-Digest when the Digests middleware runs first
     $http = new FakeClient(FakeResponse::empty(201));
     $key = SigningKey::hmac('client-1', 'shared');
 
-    new Connector('https://api.example.com', http: $http)
+    (new Connector('https://api.example.com', http: $http))
         ->withMiddleware(new Digests, new SignRequests($key, ['@method', '@path'], tag: 'acme-v1'))
         ->send(post(new JsonBody(['amount' => 5])));
 
     $sent = $http->last() ?? throw new LogicException;
-    $verified = new MessageVerifier(fn (string $id) => VerificationKey::hmac($id, 'shared'), required: ['content-digest'], tag: 'acme-v1')->verify($sent);
+    $verified = (new MessageVerifier(fn (string $id) => VerificationKey::hmac($id, 'shared'), required: ['content-digest'], tag: 'acme-v1'))->verify($sent);
 
     expect($verified->components)->toBe(['@method', '@path', 'content-digest'])
         ->and($sent->getHeaderLine('Signature-Input'))->toContain(';tag="acme-v1"');

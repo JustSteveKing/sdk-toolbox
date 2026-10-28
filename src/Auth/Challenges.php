@@ -88,6 +88,12 @@ final class Challenges
 
     public static function bearer(ResponseInterface $response): ?Challenge
     {
-        return array_find(self::from($response), static fn (Challenge $c): bool => $c->scheme === 'bearer');
+        foreach (self::from($response) as $challenge) {
+            if ($challenge->scheme === 'bearer') {
+                return $challenge;
+            }
+        }
+
+        return null;
     }
 }

@@ -35,7 +35,7 @@ it('checks only Active algorithms (section 5), and says when there was nothing t
 
 it('adds Content-Digest to requests with a body, and checks responses', function (): void {
     $http = new FakeClient(FakeResponse::json(['ok' => true], headers: ['Content-Digest' => ContentDigest::header('{"ok":true}')]));
-    $connector = new Connector('https://api.example.com', http: $http)->withMiddleware(new Digests);
+    $connector = (new Connector('https://api.example.com', http: $http))->withMiddleware(new Digests);
 
     $connector->send(post(new JsonBody(['amount' => 5])));
 
@@ -45,7 +45,7 @@ it('adds Content-Digest to requests with a body, and checks responses', function
 it('leaves bodiless requests alone', function (): void {
     $http = new FakeClient(FakeResponse::empty(200));
 
-    new Connector('https://api.example.com', http: $http)->withMiddleware(new Digests)->response(ping());
+    (new Connector('https://api.example.com', http: $http))->withMiddleware(new Digests)->response(ping());
 
     expect($http->last()?->hasHeader('Content-Digest'))->toBeFalse();
 });
@@ -53,12 +53,12 @@ it('leaves bodiless requests alone', function (): void {
 it('throws when a response does not match its digest', function (): void {
     $http = new FakeClient(FakeResponse::json(['ok' => true], headers: ['Content-Digest' => ContentDigest::header('something else')]));
 
-    expect(fn () => new Connector('https://api.example.com', http: $http)->withMiddleware(new Digests)->response(ping()))
+    expect(fn () => (new Connector('https://api.example.com', http: $http))->withMiddleware(new Digests)->response(ping()))
         ->toThrow(DigestMismatchException::class);
 });
 
 it('does not check a response a client may have decoded', function (): void {
     $http = new FakeClient(FakeResponse::json(['ok' => true], headers: ['Content-Encoding' => 'gzip', 'Content-Digest' => ContentDigest::header('gzipped bytes')]));
 
-    expect(new Connector('https://api.example.com', http: $http)->withMiddleware(new Digests)->response(ping())->status())->toBe(200);
+    expect((new Connector('https://api.example.com', http: $http))->withMiddleware(new Digests)->response(ping())->status())->toBe(200);
 });

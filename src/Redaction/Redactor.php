@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace JustSteveKing\SdkToolbox\Redaction;
 
+use JustSteveKing\SdkToolbox\Http\Uri;
 use NoDiscard;
 use Psr\Http\Message\MessageInterface;
 use Psr\Http\Message\RequestInterface;
-use Uri\Rfc3986\Uri;
 
 /**
  * Keeps credentials out of exceptions, logs and dumps.

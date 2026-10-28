@@ -30,7 +30,7 @@ it('verifies the Standard Webhooks PHP library\'s own test vector', function ():
         'webhook-signature' => 'v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=',
     ]);
 
-    expect(new StandardWebhooks(WHSEC, clock: new FakeTime('@1614265330'))->check($request))->toBe('msg_p5jXN8AQM9LWM0D4loKWxJek')
+    expect((new StandardWebhooks(WHSEC, clock: new FakeTime('@1614265330')))->check($request))->toBe('msg_p5jXN8AQM9LWM0D4loKWxJek')
         ->and(StandardWebhooks::sign(WHSEC, 'msg_p5jXN8AQM9LWM0D4loKWxJek', 1614265330, '{"test": 2432232314}'))->toBe('v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=');
 });
 
@@ -41,15 +41,15 @@ it('accepts any one valid signature, for key rotation', function (): void {
         'webhook-signature' => 'v1,Ceo5qEr07ixe2NLpvHk3FH9bwy/WavXrAFQ/9tdO6mc= v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=',
     ]);
 
-    new StandardWebhooks(WHSEC, clock: new FakeTime('@1614265330'))->verify($request);
+    (new StandardWebhooks(WHSEC, clock: new FakeTime('@1614265330')))->verify($request);
 })->throwsNoExceptions();
 
 it('rejects a webhook outside the tolerance, or tampered with', function (): void {
     $headers = ['webhook-id' => 'msg_p5jXN8AQM9LWM0D4loKWxJek', 'webhook-timestamp' => '1614265330', 'webhook-signature' => 'v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE='];
 
-    expect(fn () => new StandardWebhooks(WHSEC, clock: new FakeTime('@1614265931'))->verify(webhook($headers)))->toThrow(InvalidSignatureException::class, 'tolerance')
-        ->and(fn () => new StandardWebhooks(WHSEC, clock: new FakeTime('@1614265330'))->verify(webhook($headers, '{"test": 1}')))->toThrow(InvalidSignatureException::class, 'No webhook signature')
-        ->and(fn () => new StandardWebhooks(WHSEC)->verify(webhook([])))->toThrow(InvalidSignatureException::class, 'missing');
+    expect(fn () => (new StandardWebhooks(WHSEC, clock: new FakeTime('@1614265931')))->verify(webhook($headers)))->toThrow(InvalidSignatureException::class, 'tolerance')
+        ->and(fn () => (new StandardWebhooks(WHSEC, clock: new FakeTime('@1614265330')))->verify(webhook($headers, '{"test": 1}')))->toThrow(InvalidSignatureException::class, 'No webhook signature')
+        ->and(fn () => (new StandardWebhooks(WHSEC))->verify(webhook([])))->toThrow(InvalidSignatureException::class, 'missing');
 });
 
 it('verifies v1a, the Ed25519 scheme', function (): void {
@@ -76,7 +76,7 @@ it('verifies an RFC 9421 signed webhook only when the body is covered and intact
     $time = new FakeTime;
     $http = new FakeClient(FakeResponse::empty(200));
     $request = webhook(['Content-Type' => 'application/json', 'Content-Digest' => ContentDigest::header($body)], $body);
-    new JustSteveKing\SdkToolbox\Middleware\Pipeline($http, [new SignRequests(SigningKey::hmac('sender', 's'), ['@method', '@path'], clock: $time)])->sendRequest($request);
+    (new JustSteveKing\SdkToolbox\Middleware\Pipeline($http, [new SignRequests(SigningKey::hmac('sender', 's'), ['@method', '@path'], clock: $time)]))->sendRequest($request);
     $signed = $http->last() ?? throw new LogicException;
 
     $verifier = new SignedWebhook(new MessageVerifier(fn (string $id) => VerificationKey::hmac($id, 's'), clock: $time));

@@ -5,5 +5,5 @@ parameters:
         # The fixture SDK is analysed as an SDK author's code would be: through the generics.
         - tests/Fixtures
     phpVersion:
-        min: 80500
+        min: 80300
         max: 80699

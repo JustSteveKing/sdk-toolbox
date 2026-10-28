@@ -107,5 +107,5 @@ it('reports deprecations with or without a handler', function (): void {
 it('keeps instrumentation out of the pipeline when nobody is listening', function (): void {
     $http = new FakeClient(FakeResponse::empty(200));
 
-    expect(new Connector('https://api.example.com', http: $http)->response(ping())->status())->toBe(200);
+    expect((new Connector('https://api.example.com', http: $http))->response(ping())->status())->toBe(200);
 });

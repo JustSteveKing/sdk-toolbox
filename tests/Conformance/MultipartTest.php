@@ -39,7 +39,7 @@ it('streams resources without loading them whole, and stays seekable for a retry
     fwrite($file, str_repeat('a', 100_000));
     rewind($file);
 
-    $stream = new Multipart(Part::file('upload', $file, 'big.bin'))->stream(new Psr17Factory);
+    $stream = (new Multipart(Part::file('upload', $file, 'big.bin')))->stream(new Psr17Factory);
 
     expect($stream->isSeekable())->toBeTrue()
         ->and(substr_count((string) $stream, 'a'))->toBeGreaterThanOrEqual(100_000);
@@ -50,5 +50,5 @@ it('requires a name on every part (section 4.2)', function (): void {
 });
 
 it('uses a different boundary for every body', function (): void {
-    expect(new Multipart()->boundary)->not->toBe(new Multipart()->boundary);
+    expect((new Multipart)->boundary)->not->toBe((new Multipart)->boundary);
 });

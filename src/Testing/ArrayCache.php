@@ -38,7 +38,7 @@ final class ArrayCache implements CacheInterface
     {
         $expires = match (true) {
             $ttl === null => null,
-            $ttl instanceof DateInterval => (float) new DateTimeImmutable('@0')->add($ttl)->getTimestamp() + $this->now(),
+            $ttl instanceof DateInterval => (float) (new DateTimeImmutable('@0'))->add($ttl)->getTimestamp() + $this->now(),
             default => $ttl + $this->now(),
         };
 

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace JustSteveKing\SdkToolbox\Http;
 
-use Uri\Rfc3986\Uri;
-
 /**
  * Parses `Link` headers the way RFC 8288 Appendix B sets out.
  *
@@ -52,7 +50,13 @@ final class Links
      */
     public static function find(array|string $header, string $context, string $relation): ?Link
     {
-        return array_find(self::parse($header, $context), static fn (Link $link): bool => $link->is($relation));
+        foreach (self::parse($header, $context) as $link) {
+            if ($link->is($relation)) {
+                return $link;
+            }
+        }
+
+        return null;
     }
 
     private static function link(string $value, Uri $base): ?Link

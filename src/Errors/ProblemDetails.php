@@ -6,7 +6,7 @@ namespace JustSteveKing\SdkToolbox\Errors;
 
 use JsonException;
 use JustSteveKing\SdkToolbox\Http\Response;
-use Uri\Rfc3986\Uri;
+use JustSteveKing\SdkToolbox\Http\Uri;
 
 /**
  * An RFC 9457 problem details object, read the way the RFC tells a client

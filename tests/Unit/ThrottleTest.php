@@ -84,7 +84,7 @@ it('keeps hosts apart', function (): void {
     $throttle = new Throttle(clock: $time, sleeper: $time);
 
     throttled($http, $time, $throttle)->response(ping());
-    new Connector('https://other.example.com', http: $http, throttle: $throttle, clock: $time, sleeper: $time)->response(ping());
+    (new Connector('https://other.example.com', http: $http, throttle: $throttle, clock: $time, sleeper: $time))->response(ping());
 
     expect($time->sleeps())->toBe([]);
 });

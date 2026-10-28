@@ -20,6 +20,7 @@ use JustSteveKing\SdkToolbox\Errors\UnsafeUriException;
 use JustSteveKing\SdkToolbox\Http\BaseUri;
 use JustSteveKing\SdkToolbox\Http\QueryString;
 use JustSteveKing\SdkToolbox\Http\Response;
+use JustSteveKing\SdkToolbox\Http\Uri;
 use JustSteveKing\SdkToolbox\Hydration\Hydrator;
 use JustSteveKing\SdkToolbox\Hydration\ValinorHydrator;
 use JustSteveKing\SdkToolbox\Middleware\Middleware;
@@ -59,7 +60,6 @@ use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
-use Uri\Rfc3986\Uri;
 
 /**
  * An API: where it is, how to authenticate, and how to send requests to it.
@@ -82,7 +82,7 @@ class Connector
 
     private readonly BaseUri $baseUri;
 
-    private readonly ClientInterface $http;
+    private ClientInterface $http;
 
     private readonly RequestFactoryInterface $requests;
 
@@ -116,15 +116,15 @@ class Connector
         string $baseUri,
         private readonly ?Authenticator $auth = null,
         ?ClientInterface $http = null,
-        private readonly array $middleware = [],
-        private readonly array $headers = [],
+        private array $middleware = [],
+        private array $headers = [],
         private readonly ?string $userAgent = null,
         private readonly ExceptionMapper $exceptions = new StatusExceptions,
         ?Redactor $redactor = null,
         ?RequestFactoryInterface $requests = null,
         ?StreamFactoryInterface $streams = null,
         bool $insecure = false,
-        private readonly RetryStrategy $retry = new RetryPolicy,
+        private RetryStrategy $retry = new RetryPolicy,
         private readonly ?Throttle $throttle = null,
         private readonly IdempotencyKey $idempotencyKeys = IdempotencyKey::Quoted,
         private readonly ClockInterface $clock = new SystemClock,
@@ -316,19 +316,28 @@ class Connector
     #[NoDiscard]
     public function withMiddleware(Middleware ...$middleware): static
     {
-        return clone ($this, ['middleware' => [...$this->middleware, ...array_values($middleware)]]);
+        $copy = clone $this;
+        $copy->middleware = [...$this->middleware, ...array_values($middleware)];
+
+        return $copy;
     }
 
     #[NoDiscard]
     public function withRetry(RetryStrategy $retry): static
     {
-        return clone ($this, ['retry' => $retry]);
+        $copy = clone $this;
+        $copy->retry = $retry;
+
+        return $copy;
     }
 
     #[NoDiscard]
     public function withHttpClient(ClientInterface $http): static
     {
-        return clone ($this, ['http' => $http]);
+        $copy = clone $this;
+        $copy->http = $http;
+
+        return $copy;
     }
 
     /**
@@ -337,7 +346,10 @@ class Connector
     #[NoDiscard]
     public function withHeaders(array $headers): static
     {
-        return clone ($this, ['headers' => [...$this->headers, ...$headers]]);
+        $copy = clone $this;
+        $copy->headers = [...$this->headers, ...$headers];
+
+        return $copy;
     }
 
     public function baseUri(): string

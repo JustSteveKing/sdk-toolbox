@@ -20,7 +20,7 @@ use Psr\Http\Message\RequestInterface;
 it('sends a typed request and returns its typed result', function (): void {
     $http = new FakeClient(FakeResponse::json(['id' => 'prj_1', 'name' => 'Website']));
 
-    $project = new Acme('secret-token', $http)->projects()->get('prj_1');
+    $project = (new Acme('secret-token', $http))->projects()->get('prj_1');
 
     expect($project)->toBeInstanceOf(Project::class)
         ->and($project->name)->toBe('Website');
@@ -45,7 +45,7 @@ it('sends query values and leaves out nulls', function (): void {
 it('sends a JSON body with its content type', function (): void {
     $http = new FakeClient(FakeResponse::json(['id' => 'prj_2', 'name' => 'Docs'], 201));
 
-    new Acme('t', $http)->projects()->create('Docs');
+    (new Acme('t', $http))->projects()->create('Docs');
 
     $request = $http->last();
     expect($request?->getMethod())->toBe('POST')
@@ -56,7 +56,7 @@ it('sends a JSON body with its content type', function (): void {
 it('encodes path segments so an id cannot change the path', function (): void {
     $http = new FakeClient(FakeResponse::json(['id' => 'x', 'name' => 'x']));
 
-    new Acme('t', $http)->projects()->get('../../admin');
+    (new Acme('t', $http))->projects()->get('../../admin');
 
     expect($http->last()?->getUri()->getPath())->toBe('/v2/projects/..%2F..%2Fadmin');
 });
@@ -64,7 +64,7 @@ it('encodes path segments so an id cannot change the path', function (): void {
 it('throws the status exception for an error', function (): void {
     $http = new FakeClient(FakeResponse::problem(404, title: 'Not Found', detail: 'No project prj_9.'));
 
-    expect(fn () => new Acme('t', $http)->projects()->get('prj_9'))
+    expect(fn () => (new Acme('t', $http))->projects()->get('prj_9'))
         ->toThrow(NotFoundException::class, 'GET /v2/projects/prj_9 returned 404 Not Found: No project prj_9.');
 });
 
@@ -77,7 +77,7 @@ it('throws the SDK\'s own exception for a problem type it knows', function (): v
     ));
 
     try {
-        new Acme('t', $http)->projects()->create('Docs');
+        (new Acme('t', $http))->projects()->create('Docs');
         $this->fail('Expected OutOfCredit');
     } catch (OutOfCredit $e) {
         expect($e->balance())->toBe(30)
@@ -89,14 +89,14 @@ it('throws the SDK\'s own exception for a problem type it knows', function (): v
 it('resolves a relative problem type before matching it', function (): void {
     $http = new FakeClient(FakeResponse::problem(403, type: '/problems/out-of-credit'));
 
-    expect(fn () => new Acme('t', $http)->projects()->create('Docs'))->toThrow(OutOfCredit::class);
+    expect(fn () => (new Acme('t', $http))->projects()->create('Docs'))->toThrow(OutOfCredit::class);
 });
 
 it('maps 422 to an unprocessable content exception carrying the problem', function (): void {
     $http = new FakeClient(FakeResponse::problem(422, title: 'Invalid', extensions: ['errors' => ['name' => ['Required.']]]));
 
     try {
-        new Acme('t', $http)->projects()->create('');
+        (new Acme('t', $http))->projects()->create('');
     } catch (UnprocessableContentException $e) {
         expect($e->problem?->extension('errors'))->toBe(['name' => ['Required.']]);
     }
@@ -106,7 +106,7 @@ it('never keeps the token in an exception', function (): void {
     $http = new FakeClient(FakeResponse::problem(400, title: 'Boom'));
 
     try {
-        new Acme('very-secret-token', $http)->projects()->get('prj_1');
+        (new Acme('very-secret-token', $http))->projects()->get('prj_1');
     } catch (SdkException $e) {
         expect(print_r($e, true))->not->toContain('very-secret-token')
             ->and(serialize($e->request))->not->toContain('very-secret-token');
@@ -118,7 +118,7 @@ it('turns a network failure that outlasts the retries into a transport exception
     $time = new FakeTime;
 
     try {
-        new Acme('t', $http, $time, $time)->projects()->get('prj_1');
+        (new Acme('t', $http, $time, $time))->projects()->get('prj_1');
         $this->fail('Expected a TransportException');
     } catch (TransportException $e) {
         expect($e->network)->toBeTrue()
@@ -136,7 +136,7 @@ it('retries a failed read and returns the result when it recovers', function ():
     );
     $time = new FakeTime;
 
-    $project = new Acme('t', $http, $time, $time)->projects()->get('prj_1');
+    $project = (new Acme('t', $http, $time, $time))->projects()->get('prj_1');
 
     expect($project->name)->toBe('Website')
         ->and($time->sleeps())->toBe([2.0]);
@@ -145,12 +145,12 @@ it('retries a failed read and returns the result when it recovers', function ():
 it('does not retry a create that may have landed', function (): void {
     $http = new FakeClient(FakeResponse::problem(502, title: 'Bad gateway'));
 
-    expect(fn () => new Acme('t', $http)->projects()->create('Docs'))->toThrow(ServerException::class);
+    expect(fn () => (new Acme('t', $http))->projects()->create('Docs'))->toThrow(ServerException::class);
     $http->assertSentCount(1);
 });
 
 it('lets a stray request fail the test instead of becoming a transport error', function (): void {
-    expect(fn () => new Acme('t', new FakeClient)->projects()->get('prj_1'))
+    expect(fn () => (new Acme('t', new FakeClient))->projects()->get('prj_1'))
         ->toThrow(StrayRequestException::class);
 });
 

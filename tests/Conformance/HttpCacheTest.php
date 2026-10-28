@@ -142,7 +142,7 @@ it('never stores a 429 (RFC 6585 4)', function (): void {
     $time = new FakeTime;
     $cache = new ArrayCache($time);
 
-    new Connector('https://api.example.com', http: new FakeClient(FakeResponse::empty(429, ['Cache-Control' => 'max-age=600'])), clock: $time, sleeper: $time, cache: $cache, retry: JustSteveKing\SdkToolbox\Retries\RetryPolicy::none())->response(ping());
+    (new Connector('https://api.example.com', http: new FakeClient(FakeResponse::empty(429, ['Cache-Control' => 'max-age=600'])), clock: $time, sleeper: $time, cache: $cache, retry: JustSteveKing\SdkToolbox\Retries\RetryPolicy::none()))->response(ping());
 
     expect($cache->all())->toBe([]);
 });

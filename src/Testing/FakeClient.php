@@ -85,7 +85,7 @@ final class FakeClient implements ClientInterface
     public function assertSent(Closure $matches): void
     {
         self::assert(
-            array_any($this->sent, $matches),
+            self::any($this->sent, $matches),
             'No request matching the given callback was sent.',
         );
     }
@@ -96,7 +96,7 @@ final class FakeClient implements ClientInterface
     public function assertNotSent(Closure $matches): void
     {
         self::assert(
-            ! array_any($this->sent, $matches),
+            ! self::any($this->sent, $matches),
             'A request matching the given callback was sent.',
         );
     }
@@ -107,7 +107,7 @@ final class FakeClient implements ClientInterface
     public function assertSentTo(string $method, string $path): void
     {
         self::assert(
-            array_any($this->sent, static fn (RequestInterface $r): bool => strcasecmp($r->getMethod(), $method) === 0 && $r->getUri()->getPath() === $path),
+            self::any($this->sent, static fn (RequestInterface $r): bool => strcasecmp($r->getMethod(), $method) === 0 && $r->getUri()->getPath() === $path),
             "No {$method} {$path} was sent.",
         );
     }
@@ -121,7 +121,7 @@ final class FakeClient implements ClientInterface
     public function assertSentJson(array $subset): void
     {
         self::assert(
-            array_any($this->sent, static function (RequestInterface $r) use ($subset): bool {
+            self::any($this->sent, static function (RequestInterface $r) use ($subset): bool {
                 $body = json_decode((string) $r->getBody(), true);
                 $r->getBody()->rewind();
 
@@ -167,6 +167,23 @@ final class FakeClient implements ClientInterface
     public function assertQueueEmpty(): void
     {
         self::assert($this->queue === [], sprintf('%d fake responses were never used.', count($this->queue)));
+    }
+
+    /**
+     * array_any(), which PHP only has from 8.4.
+     *
+     * @param  list<RequestInterface>  $requests
+     * @param  Closure(RequestInterface): bool  $matches
+     */
+    private static function any(array $requests, Closure $matches): bool
+    {
+        foreach ($requests as $request) {
+            if ($matches($request)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

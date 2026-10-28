@@ -13,7 +13,7 @@ fakes, under different rules:
   baseline.
 - **No magic.** No trait booting, no static state, no mutable public
   config. Connectors are immutable, and their `with*()` methods are marked
-  `#[\NoDiscard]`.
+  `#[\NoDiscard]`, so PHP 8.5 warns when a changed copy is thrown away.
 - **Secure by default.**
   - Request paths can't leave the base URI.
   - Credentials aren't sent without TLS unless you say so.
@@ -30,7 +30,7 @@ fakes, under different rules:
   - RFC 9530 Content-Digest, RFC 9421 HTTP Message Signatures, Standard
     Webhooks
 
-Requires PHP 8.5. It's at 0.x and not on Packagist yet.
+Requires PHP 8.3 or newer, and is tested on 8.3, 8.4 and 8.5. It's at 0.x and not on Packagist yet.
 
 ## Install
 

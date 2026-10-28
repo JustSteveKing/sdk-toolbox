@@ -54,7 +54,7 @@ it('sends preferences and reads Preference-Applied (section 3)', function (): vo
         }
     };
 
-    $response = new Connector('https://api.example.com', http: $http)->send($request);
+    $response = (new Connector('https://api.example.com', http: $http))->send($request);
 
     expect($http->last()?->getHeaderLine('Prefer'))->toBe('return=minimal')
         ->and($response->preferenceApplied())->toBe(['return' => 'minimal', 'respond-async' => null]);

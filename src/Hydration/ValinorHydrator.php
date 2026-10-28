@@ -40,7 +40,7 @@ final readonly class ValinorHydrator implements Hydrator
 
     public static function defaults(): MapperBuilder
     {
-        return new MapperBuilder()
+        return (new MapperBuilder)
             ->allowSuperfluousKeys()
             ->configureWith(new ConvertKeysToCamelCase);
     }

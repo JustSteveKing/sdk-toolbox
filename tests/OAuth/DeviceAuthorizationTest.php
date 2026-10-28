@@ -24,7 +24,7 @@ it('starts with what the user needs to see (RFC 8628 3.2)', function (): void {
     $time = new FakeTime;
     $auth = new FakeClient(deviceStart());
 
-    $code = new DeviceAuthorization(oauthClient($auth, $time), $time)->start(['projects:read']);
+    $code = (new DeviceAuthorization(oauthClient($auth, $time), $time))->start(['projects:read']);
 
     expect($code->userCode)->toBe('WDJB-MJHT')
         ->and($code->verificationUri)->toBe('https://auth.acme.test/device')

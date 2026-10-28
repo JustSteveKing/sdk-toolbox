@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace JustSteveKing\SdkToolbox\Http;
 
 use JustSteveKing\SdkToolbox\Errors\UnsafeUriException;
-use Uri\Rfc3986\Uri;
 
 /**
  * The one address an SDK talks to, and the only one.

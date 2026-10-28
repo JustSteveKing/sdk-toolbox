@@ -51,7 +51,7 @@ final readonly class Throttle implements Middleware
     #[NoDiscard]
     public function withTelemetry(Telemetry $telemetry): self
     {
-        return clone ($this, ['telemetry' => $telemetry]);
+        return new self($this->store, $this->maxWait, $this->clock, $this->sleeper, $telemetry);
     }
 
     public function handle(RequestInterface $request, Next $next): ResponseInterface

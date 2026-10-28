@@ -70,13 +70,13 @@ final readonly class HttpCache implements Middleware
     #[NoDiscard]
     public function withRedactor(Redactor $redactor): self
     {
-        return clone ($this, ['redactor' => $redactor]);
+        return new self($this->store, $this->clock, $redactor, $this->maxBodySize, $this->prefix, $this->telemetry, $this->responses, $this->streams);
     }
 
     #[NoDiscard]
     public function withTelemetry(Telemetry $telemetry): self
     {
-        return clone ($this, ['telemetry' => $telemetry]);
+        return new self($this->store, $this->clock, $this->redactor, $this->maxBodySize, $this->prefix, $telemetry, $this->responses, $this->streams);
     }
 
     public function handle(RequestInterface $request, Next $next): ResponseInterface

@@ -12,7 +12,7 @@ use Nyholm\Psr7\Request;
  */
 function problemFrom(Psr\Http\Message\ResponseInterface $psr, string $uri = 'https://api.example.com/v2/orders/1?api_key=secret'): ?ProblemDetails
 {
-    return new Response($psr, new Request('POST', $uri))->problem();
+    return (new Response($psr, new Request('POST', $uri)))->problem();
 }
 
 it('reads the standard members', function (): void {

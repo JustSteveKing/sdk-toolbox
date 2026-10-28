@@ -51,9 +51,9 @@ it('records what is missing and replays what exists, in missing mode', function 
     $directory = fixtures();
     $real = new FakeClient(FakeResponse::json(['n' => 1]));
 
-    expect(new Recorder($directory, 'thing', RecordMode::Missing, $real)->isRecording())->toBeTrue();
+    expect((new Recorder($directory, 'thing', RecordMode::Missing, $real))->isRecording())->toBeTrue();
     recorded(new Recorder($directory, 'thing', RecordMode::Missing, $real))->response(ping());
-    expect(new Recorder($directory, 'thing', RecordMode::Missing, $real)->isRecording())->toBeFalse();
+    expect((new Recorder($directory, 'thing', RecordMode::Missing, $real))->isRecording())->toBeFalse();
 });
 
 it('throws when the SDK sends something other than what was recorded', function (): void {
