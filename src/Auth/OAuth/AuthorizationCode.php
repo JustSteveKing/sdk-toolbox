@@ -47,7 +47,7 @@ final readonly class AuthorizationCode
             'response_type' => 'code',
             'client_id' => $this->client->clientId,
             'redirect_uri' => $this->redirectUri,
-            'scope' => $scopes === [] ? null : implode(' ', $scopes),
+            'scope' => $this->client->scope($scopes),
             'state' => $state,
             'code_challenge' => $pkce->challenge(),
             'code_challenge_method' => $pkce->method(),

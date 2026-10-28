@@ -55,6 +55,8 @@ Pass it as `auth:` to the connector. A connector with credentials refuses an `ht
 $oauth = new Auth\OAuth\OAuthClient(tokenEndpoint: '...', clientId: $id, clientSecret: $secret, authorizationEndpoint: '...');
 ```
 
+Pass `scopeSeparator: ','` when the server lists scopes with commas, and `authentication: Auth\OAuth\ClientAuthentication::Post` when it wants the secret in the body.
+
 | Grant | Use |
 |---|---|
 | `new Auth\OAuth\ClientCredentials($oauth, ['scope'])` | server to server; needs a client secret |

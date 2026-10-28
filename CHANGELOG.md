@@ -11,6 +11,7 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 - `headerPrefix` on `StandardWebhooks`, for senders that use their own prefix, such as Svix's `svix-id`, `svix-timestamp` and `svix-signature`.
 - `TimestampedHmacWebhook`, for an HMAC over a timestamp and the body, with `stripe()`, `slack()` and `ghost()` constructors. The timestamp is checked against a tolerance, every signature under the scheme's key is tried, and other keys are ignored.
 - `rotating: true` on `RefreshingToken`, for servers that rotate refresh tokens and omit one when the old one is spent. The spent token is no longer kept and sent again later, which such a server reads as a replay.
+- `scopeSeparator` on `OAuthClient`, for servers that list scopes with commas rather than RFC 6749's spaces. Every flow sends scopes that way and reads granted ones back the same way.
 
 ## [0.0.1] - 2026-10-28
 

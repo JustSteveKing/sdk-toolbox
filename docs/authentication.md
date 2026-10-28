@@ -41,6 +41,7 @@ $oauth = new OAuthClient(
 - **TLS:** every endpoint has to be HTTPS, unless you pass `insecure: true`.
 - **Client authentication** uses HTTP Basic. Following RFC 6749 §2.3.1, the ID and secret are form-encoded before Basic encoding, which is the step most clients miss: a secret with a `+` in it fails without it. Pass `authentication: ClientAuthentication::Post` for servers that want them in the body instead.
 - **The token endpoint** is called directly over PSR-18, not through your connector. It's usually another host with different rules.
+- **Scopes** are listed with spaces, as RFC 6749 §3.3 says. Some servers (Todoist among them) want commas instead: pass `scopeSeparator: ','`, and every flow sends them that way and reads the granted scopes back the same way.
 
 ### Server to server: client credentials
 

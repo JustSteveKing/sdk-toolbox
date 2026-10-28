@@ -39,6 +39,7 @@ final readonly class OAuthClient
 
     /**
      * @param  string|null  $clientSecret  null for a public client, such as a CLI or a mobile app
+     * @param  string  $scopeSeparator  how the server lists scopes: a space, as RFC 6749 section 3.3 says, unless it uses commas
      */
     public function __construct(
         public string $tokenEndpoint,
@@ -53,7 +54,12 @@ final readonly class OAuthClient
         ?StreamFactoryInterface $streams = null,
         public ClockInterface $clock = new SystemClock,
         bool $insecure = false,
+        public string $scopeSeparator = ' ',
     ) {
+        if ($scopeSeparator === '') {
+            throw new InvalidRequestException('A scope separator can\'t be empty.');
+        }
+
         foreach ([$tokenEndpoint, $authorizationEndpoint, $deviceAuthorizationEndpoint] as $endpoint) {
             if ($endpoint !== null && ! $insecure && ! str_starts_with(strtolower($endpoint), 'https://')) {
                 throw new InvalidRequestException("OAuth endpoints must use TLS: [{$endpoint}]. Pass `insecure: true` for a local server.");
@@ -63,6 +69,16 @@ final readonly class OAuthClient
         $this->http = $http ?? Psr18ClientDiscovery::find();
         $this->requests = $requests ?? Psr17FactoryDiscovery::findRequestFactory();
         $this->streams = $streams ?? Psr17FactoryDiscovery::findStreamFactory();
+    }
+
+    /**
+     * The `scope` parameter for a list of scopes, or null for none.
+     *
+     * @param  list<string>  $scopes
+     */
+    public function scope(array $scopes): ?string
+    {
+        return $scopes === [] ? null : implode($this->scopeSeparator, $scopes);
     }
 
     public function isPublic(): bool
@@ -81,7 +97,7 @@ final readonly class OAuthClient
      */
     public function requestToken(array $parameters, array $scopes = []): AccessToken
     {
-        return AccessToken::fromResponse($this->post($this->tokenEndpoint, $parameters), $this->clock, $scopes);
+        return AccessToken::fromResponse($this->post($this->tokenEndpoint, $parameters), $this->clock, $scopes, $this->scopeSeparator);
     }
 
     /**

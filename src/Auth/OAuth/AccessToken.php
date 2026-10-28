@@ -31,10 +31,11 @@ final readonly class AccessToken
      *
      * @param  array<array-key, mixed>  $data
      * @param  list<string>  $requested  scopes asked for, which stand when the server doesn't list them
+     * @param  string  $separator  how the server lists scopes, a space unless it says otherwise
      *
      * @throws OAuthException when there's no token, or it isn't a Bearer token
      */
-    public static function fromResponse(array $data, ClockInterface $clock, array $requested = []): self
+    public static function fromResponse(array $data, ClockInterface $clock, array $requested = [], string $separator = ' '): self
     {
         $token = $data['access_token'] ?? null;
         $type = $data['token_type'] ?? null;
@@ -57,7 +58,7 @@ final readonly class AccessToken
             token: $token,
             expiresAt: is_int($expiresIn) || is_numeric($expiresIn) ? $clock->now()->modify(sprintf('+%d seconds', (int) $expiresIn)) : null,
             refreshToken: is_string($refresh) && $refresh !== '' ? $refresh : null,
-            scopes: is_string($scope) ? array_values(array_filter(explode(' ', $scope))) : $requested,
+            scopes: is_string($scope) && $separator !== '' ? array_values(array_filter(array_map(trim(...), explode($separator, $scope)))) : $requested,
         );
     }
 

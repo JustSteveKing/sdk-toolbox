@@ -3,7 +3,10 @@
 declare(strict_types=1);
 
 use JustSteveKing\SdkToolbox\Auth\OAuth\AuthorizationCode;
+use JustSteveKing\SdkToolbox\Auth\OAuth\ClientCredentials;
+use JustSteveKing\SdkToolbox\Auth\OAuth\OAuthClient;
 use JustSteveKing\SdkToolbox\Auth\OAuth\Pkce;
+use JustSteveKing\SdkToolbox\Errors\InvalidRequestException;
 use JustSteveKing\SdkToolbox\Errors\OAuthException;
 use JustSteveKing\SdkToolbox\Testing\FakeClient;
 use JustSteveKing\SdkToolbox\Testing\FakeTime;
@@ -40,6 +43,33 @@ it('builds the authorisation URL with state and an S256 challenge', function ():
             'code_challenge' => $started->pkce->challenge(),
             'code_challenge_method' => 'S256',
         ]);
+});
+
+it('lists scopes with commas for a server that wants them', function (): void {
+    $time = new FakeTime;
+    $auth = new FakeClient(token('user-token', scope: 'data:read,data:delete'));
+    $client = new OAuthClient('https://auth.acme.test/oauth/token', 'acme app', 's3cr+t', 'https://auth.acme.test/oauth/authorize', http: $auth, clock: $time, scopeSeparator: ',');
+    $flow = new AuthorizationCode($client, 'https://app.test/callback');
+
+    $started = $flow->start(['data:read', 'data:delete']);
+    parse_str((string) parse_url($started->url, PHP_URL_QUERY), $query);
+
+    expect($query['scope'])->toBe('data:read,data:delete')
+        ->and($flow->exchange($started, 'the-code', $started->state)->scopes)->toBe(['data:read', 'data:delete']);
+});
+
+it('sends comma-listed scopes from every grant, not just the code flow', function (): void {
+    $time = new FakeTime;
+    $auth = new FakeClient(token('app-token'));
+    $client = new OAuthClient('https://auth.acme.test/oauth/token', 'acme app', 's3cr+t', http: $auth, clock: $time, scopeSeparator: ',');
+
+    (new ClientCredentials($client, ['a', 'b']))->authenticate(new Nyholm\Psr7\Request('GET', 'https://api.acme.test/'));
+
+    expect(form($auth->last())['scope'])->toBe('a,b');
+});
+
+it('refuses an empty scope separator', function (): void {
+    expect(fn () => new OAuthClient('https://auth.acme.test/oauth/token', 'acme app', scopeSeparator: ''))->toThrow(InvalidRequestException::class);
 });
 
 it('exchanges the code with the verifier', function (): void {

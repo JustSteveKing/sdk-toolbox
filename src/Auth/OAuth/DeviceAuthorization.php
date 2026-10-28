@@ -40,7 +40,7 @@ final readonly class DeviceAuthorization
     public function start(array $scopes = []): DeviceCode
     {
         $data = $this->client->post((string) $this->client->deviceAuthorizationEndpoint, [
-            'scope' => $scopes === [] ? null : implode(' ', $scopes),
+            'scope' => $this->client->scope($scopes),
         ]);
 
         $device = $data['device_code'] ?? null;

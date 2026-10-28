@@ -44,7 +44,7 @@ final readonly class ClientCredentials implements Refreshable
             lock: $lock,
             clock: $client->clock,
             fetch: static fn (): AccessToken => $client->requestToken(
-                ['grant_type' => 'client_credentials', 'scope' => $scopes === [] ? null : implode(' ', $scopes)],
+                ['grant_type' => 'client_credentials', 'scope' => $client->scope($scopes)],
                 $scopes,
             ),
             leeway: $leeway,
