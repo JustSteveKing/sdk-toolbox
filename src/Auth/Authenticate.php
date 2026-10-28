@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace JustSteveKing\SdkToolbox\Auth;
 
+use JustSteveKing\SdkToolbox\Events\CredentialsRefreshed;
 use JustSteveKing\SdkToolbox\Middleware\Middleware;
 use JustSteveKing\SdkToolbox\Middleware\Next;
+use JustSteveKing\SdkToolbox\Observability\Telemetry;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 
@@ -26,6 +28,7 @@ final readonly class Authenticate implements Middleware
 {
     public function __construct(
         private Authenticator $auth,
+        private Telemetry $telemetry = new Telemetry,
     ) {}
 
     public function handle(RequestInterface $request, Next $next): ResponseInterface
@@ -44,6 +47,7 @@ final readonly class Authenticate implements Middleware
         }
 
         $this->auth->refresh($sent);
+        $this->telemetry->emit(new CredentialsRefreshed($this->telemetry->snapshot($request)));
         $body->rewind();
 
         return $next->handle($this->auth->authenticate($request));

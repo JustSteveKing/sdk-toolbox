@@ -20,6 +20,7 @@
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
             <directory>tests/OAuth</directory>
+            <directory>tests/Observability</directory>
         </testsuite>
     </testsuites>
     <source>

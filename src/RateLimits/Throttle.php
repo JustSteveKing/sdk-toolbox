@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace JustSteveKing\SdkToolbox\RateLimits;
 
 use JustSteveKing\SdkToolbox\Errors\RateLimitExceededException;
+use JustSteveKing\SdkToolbox\Events\RateLimitWaiting;
 use JustSteveKing\SdkToolbox\Middleware\Middleware;
 use JustSteveKing\SdkToolbox\Middleware\Next;
+use JustSteveKing\SdkToolbox\Observability\Telemetry;
 use JustSteveKing\SdkToolbox\Retries\RetryAfter;
 use JustSteveKing\SdkToolbox\Time\Sleeper;
 use JustSteveKing\SdkToolbox\Time\SystemClock;
 use JustSteveKing\SdkToolbox\Time\SystemSleeper;
+use NoDiscard;
 use Psr\Clock\ClockInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -38,7 +41,18 @@ final readonly class Throttle implements Middleware
         private float $maxWait = 60.0,
         private ClockInterface $clock = new SystemClock,
         private Sleeper $sleeper = new SystemSleeper,
+        private Telemetry $telemetry = new Telemetry,
     ) {}
+
+    /**
+     * The connector calls this, so the throttle's waits are logged and
+     * dispatched like everything else.
+     */
+    #[NoDiscard]
+    public function withTelemetry(Telemetry $telemetry): self
+    {
+        return clone ($this, ['telemetry' => $telemetry]);
+    }
 
     public function handle(RequestInterface $request, Next $next): ResponseInterface
     {
@@ -53,6 +67,7 @@ final readonly class Throttle implements Middleware
             }
 
             if ($wait > 0) {
+                $this->telemetry->emit(new RateLimitWaiting($key, $wait));
                 $this->sleeper->sleep($wait);
             }
 

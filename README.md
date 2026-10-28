@@ -26,7 +26,7 @@ fakes, under different rules:
   - OAuth 2.0: RFC 6749, 6750, 7636 (PKCE), 8628 (device flow), 9700
   - RFC 9111 caching, RFC 9110 conditional requests, RFC 9745 Deprecation,
     RFC 8594 Sunset, RFC 7240 Prefer
-  - more to come: logging, events and tracing
+  - PSR-3 logging, PSR-14 events, W3C Trace Context, OpenTelemetry spans
 
 Requires PHP 8.5. It's at 0.x and not on Packagist yet.
 
@@ -362,6 +362,45 @@ A synchronous answer comes straight back. Monitors outside the base URI
 are refused. When `timeout` is reached, `OperationTimeoutException`
 carries the monitor URI so you can check again later.
 
+## Logging, events and tracing
+
+```php
+logger: $psr3Logger,              // every event, as a log line
+events: $psr14Dispatcher,         // every event, as an object
+tracing: new OpenTelemetrySpans,  // or new TraceContext(fn () => [$traceparent, $tracestate])
+```
+
+| Event | Level | When |
+|---|---|---|
+| `RequestSending` | debug | each attempt, as it goes to the client |
+| `ResponseReceived` | debug, warning for 5xx | each attempt that got a response, with its duration |
+| `RequestFailed` | warning | each attempt that got no response |
+| `RetryScheduled` | info | the retry policy is trying again, and when |
+| `RateLimitWaiting` | warning | the throttle is holding a request |
+| `CredentialsRefreshed` | info | the API rejected the credentials; renewed, retrying once |
+| `CacheHit` | debug | served from the HTTP cache, fresh or after a 304 |
+| `DeprecationNoticed` | warning | Deprecation or Sunset, once per endpoint |
+
+Events carry redacted request snapshots, never the PSR-7 request, so
+neither a listener nor a log line can leak credentials.
+
+`OpenTelemetrySpans` records a client span per attempt, following the
+stable HTTP semantic conventions:
+
+- **Attributes:** method, server address and port, a redacted `url.full`,
+  the status code, `http.request.resend_count` on retries, and
+  `error.type`.
+- **Name:** `{method}`, never the raw path.
+- **Status:** Error for 4xx, 5xx and network failures.
+- **Propagation:** the span's own context goes out as `traceparent`.
+
+It needs `open-telemetry/api` and uses OpenTelemetry's globals unless you
+pass a tracer provider and propagator.
+
+`TraceContext` is the dependency-free option. It joins the trace you give
+it, with a new parent-id for every request as the W3C Recommendation
+requires, or starts one when there isn't one.
+
 ## Middleware
 
 ```php
@@ -379,7 +418,8 @@ The order is:
 4. your middleware, in order
 5. authentication (including the one retry after a rejected token)
 6. the HTTP cache
-7. the HTTP client
+7. instrumentation and tracing, per attempt
+8. the HTTP client
 
 The cache comes after authentication so it can key entries on
 credentials. So every retry is throttled,

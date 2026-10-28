@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace JustSteveKing\SdkToolbox\Caching;
 
 use Http\Discovery\Psr17FactoryDiscovery;
+use JustSteveKing\SdkToolbox\Events\CacheHit;
 use JustSteveKing\SdkToolbox\Http\HttpDate;
 use JustSteveKing\SdkToolbox\Middleware\Middleware;
 use JustSteveKing\SdkToolbox\Middleware\Next;
+use JustSteveKing\SdkToolbox\Observability\Telemetry;
 use JustSteveKing\SdkToolbox\Redaction\Redactor;
 use JustSteveKing\SdkToolbox\Time\SystemClock;
 use NoDiscard;
@@ -57,6 +59,7 @@ final readonly class HttpCache implements Middleware
         private Redactor $redactor = new Redactor,
         private int $maxBodySize = 1_048_576,
         private string $prefix = 'sdk-toolbox.http.',
+        private Telemetry $telemetry = new Telemetry,
         ?ResponseFactoryInterface $responses = null,
         ?StreamFactoryInterface $streams = null,
     ) {
@@ -68,6 +71,12 @@ final readonly class HttpCache implements Middleware
     public function withRedactor(Redactor $redactor): self
     {
         return clone ($this, ['redactor' => $redactor]);
+    }
+
+    #[NoDiscard]
+    public function withTelemetry(Telemetry $telemetry): self
+    {
+        return clone ($this, ['telemetry' => $telemetry]);
     }
 
     public function handle(RequestInterface $request, Next $next): ResponseInterface
@@ -98,6 +107,8 @@ final readonly class HttpCache implements Middleware
         $entry = $this->entry($key, $request);
 
         if ($entry !== null && ! $requestDirectives->has('no-cache') && $this->fresh($entry)) {
+            $this->telemetry->emit(new CacheHit($this->telemetry->snapshot($request), revalidated: false));
+
             return $this->toResponse($entry);
         }
 
@@ -110,6 +121,7 @@ final readonly class HttpCache implements Middleware
         if ($entry !== null && $response->getStatusCode() === 304) {
             $entry = $this->freshen($entry, $response);
             $this->store->set($key, $entry);
+            $this->telemetry->emit(new CacheHit($this->telemetry->snapshot($request), revalidated: true));
 
             return $this->toResponse($entry);
         }

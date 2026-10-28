@@ -25,6 +25,11 @@ use JustSteveKing\SdkToolbox\Hydration\ValinorHydrator;
 use JustSteveKing\SdkToolbox\Middleware\Middleware;
 use JustSteveKing\SdkToolbox\Middleware\Next;
 use JustSteveKing\SdkToolbox\Middleware\Pipeline;
+use JustSteveKing\SdkToolbox\Observability\Attempts;
+use JustSteveKing\SdkToolbox\Observability\Observe;
+use JustSteveKing\SdkToolbox\Observability\OpenTelemetrySpans;
+use JustSteveKing\SdkToolbox\Observability\Telemetry;
+use JustSteveKing\SdkToolbox\Observability\TraceContext;
 use JustSteveKing\SdkToolbox\Pagination\Pagination;
 use JustSteveKing\SdkToolbox\Pagination\Paginator;
 use JustSteveKing\SdkToolbox\RateLimits\Throttle;
@@ -46,11 +51,13 @@ use JustSteveKing\SdkToolbox\Time\SystemClock;
 use JustSteveKing\SdkToolbox\Time\SystemSleeper;
 use NoDiscard;
 use Psr\Clock\ClockInterface;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\StreamFactoryInterface;
+use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
 use Uri\Rfc3986\Uri;
 
@@ -63,7 +70,8 @@ use Uri\Rfc3986\Uri;
  *
  * Requests go through the retry policy, the throttle and deprecation
  * watcher if there are any, the middleware in order, the authenticator,
- * the HTTP cache if there is one, then the PSR-18 client. So each
+ * the HTTP cache if there is one, the instrumentation and tracing, then
+ * the PSR-18 client. So each
  * retry is throttled, passes through every middleware and is
  * authenticated afresh. Bring your application's client, or leave it out and
  * php-http/discovery finds an installed one.
@@ -86,6 +94,8 @@ class Connector
 
     private readonly ?HttpCache $cache;
 
+    private readonly Telemetry $telemetry;
+
     /**
      * @param  string  $baseUri  every request path is appended to this, and can't leave it
      * @param  list<Middleware>  $middleware  run in order, before authentication
@@ -98,6 +108,9 @@ class Connector
      * @param  Hydrator|null  $hydrator  maps responses to objects; ValinorHydrator when cuyz/valinor is installed
      * @param  CacheInterface|null  $cache  a PSR-16 store for an RFC 9111 private HTTP cache; no caching without one
      * @param  Deprecations|null  $deprecations  told about Deprecation and Sunset headers, once per endpoint
+     * @param  LoggerInterface|null  $logger  every event logged through PSR-3, redacted
+     * @param  EventDispatcherInterface|null  $events  every event dispatched through PSR-14
+     * @param  TraceContext|OpenTelemetrySpans|null  $tracing  trace context on every attempt, or an OpenTelemetry span for each
      */
     public function __construct(
         string $baseUri,
@@ -119,6 +132,9 @@ class Connector
         ?Hydrator $hydrator = null,
         ?CacheInterface $cache = null,
         private readonly ?Deprecations $deprecations = null,
+        ?LoggerInterface $logger = null,
+        ?EventDispatcherInterface $events = null,
+        private readonly TraceContext|OpenTelemetrySpans|null $tracing = null,
     ) {
         $this->baseUri = new BaseUri($baseUri);
 
@@ -135,7 +151,9 @@ class Connector
         $this->requests = $requests ?? Psr17FactoryDiscovery::findRequestFactory();
         $this->streams = $streams ?? Psr17FactoryDiscovery::findStreamFactory();
         $this->redactor = ($redactor ?? new Redactor)->with($sensitive['headers'], $sensitive['query']);
-        $this->cache = $cache === null ? null : new HttpCache($cache, $this->clock, $this->redactor);
+        $this->telemetry = new Telemetry($events, $logger, $this->redactor);
+        $this->cache = $cache === null ? null : new HttpCache($cache, $this->clock, $this->redactor, telemetry: $this->telemetry);
+        $this->deprecations?->useTelemetry($this->telemetry);
     }
 
     /**
@@ -397,20 +415,35 @@ class Connector
 
     private function pipeline(): Pipeline
     {
+        // One counter per send, shared by the retry middleware that counts
+        // attempts and the instrumentation that reports them.
+        $attempts = new Attempts;
+
         $middleware = [
-            new Retry($this->retry, $this->clock, $this->sleeper),
-            ...($this->throttle === null ? [] : [$this->throttle]),
+            new Retry($this->retry, $this->clock, $this->sleeper, $this->telemetry, $attempts),
+            ...($this->throttle === null ? [] : [$this->throttle->withTelemetry($this->telemetry)]),
             ...($this->deprecations === null ? [] : [$this->deprecations]),
             ...$this->middleware,
         ];
 
         if ($this->auth !== null) {
-            $middleware[] = new Authenticate($this->auth);
+            $middleware[] = new Authenticate($this->auth, $this->telemetry);
         }
 
         // Last, so it sees the credentials it has to key entries on.
         if ($this->cache !== null) {
             $middleware[] = $this->cache;
+        }
+
+        // Per attempt, right before the client: a cache hit isn't an attempt.
+        if ($this->telemetry->enabled()) {
+            $middleware[] = new Observe($this->telemetry, $attempts);
+        }
+
+        if ($this->tracing instanceof OpenTelemetrySpans) {
+            $middleware[] = $this->tracing->withRedactor($this->redactor)->withAttempts($attempts);
+        } elseif ($this->tracing !== null) {
+            $middleware[] = $this->tracing;
         }
 
         return new Pipeline($this->http, $middleware);

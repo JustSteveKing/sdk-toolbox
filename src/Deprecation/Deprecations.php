@@ -6,8 +6,10 @@ namespace JustSteveKing\SdkToolbox\Deprecation;
 
 use Closure;
 use JustSteveKing\SdkToolbox\Errors\DeprecatedEndpointException;
+use JustSteveKing\SdkToolbox\Events\DeprecationNoticed;
 use JustSteveKing\SdkToolbox\Middleware\Middleware;
 use JustSteveKing\SdkToolbox\Middleware\Next;
+use JustSteveKing\SdkToolbox\Observability\Telemetry;
 use JustSteveKing\SdkToolbox\Redaction\Redactor;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -27,13 +29,25 @@ final class Deprecations implements Middleware
     /** @var array<string, true> */
     private array $seen = [];
 
+    private Telemetry $telemetry;
+
     /**
-     * @param  Closure(DeprecationNotice): void  $handler
+     * @param  (Closure(DeprecationNotice): void)|null  $handler  null to only log and dispatch it
      */
     public function __construct(
-        private readonly Closure $handler,
+        private readonly ?Closure $handler = null,
         private readonly Redactor $redactor = new Redactor,
-    ) {}
+    ) {
+        $this->telemetry = new Telemetry;
+    }
+
+    /**
+     * The connector calls this, so notices are logged and dispatched too.
+     */
+    public function useTelemetry(Telemetry $telemetry): void
+    {
+        $this->telemetry = $telemetry;
+    }
 
     /**
      * Throws DeprecatedEndpointException for the first response that
@@ -54,7 +68,11 @@ final class Deprecations implements Middleware
 
             if (! isset($this->seen[$key])) {
                 $this->seen[$key] = true;
-                ($this->handler)($notice);
+                $this->telemetry->emit(new DeprecationNoticed($notice));
+
+                if ($this->handler !== null) {
+                    ($this->handler)($notice);
+                }
             }
         }
 

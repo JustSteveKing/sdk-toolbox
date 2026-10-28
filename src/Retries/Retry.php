@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace JustSteveKing\SdkToolbox\Retries;
 
+use JustSteveKing\SdkToolbox\Events\RetryScheduled;
 use JustSteveKing\SdkToolbox\Middleware\Middleware;
 use JustSteveKing\SdkToolbox\Middleware\Next;
+use JustSteveKing\SdkToolbox\Observability\Attempts;
+use JustSteveKing\SdkToolbox\Observability\Telemetry;
 use JustSteveKing\SdkToolbox\Time\Seconds;
 use JustSteveKing\SdkToolbox\Time\Sleeper;
 use Psr\Clock\ClockInterface;
@@ -30,6 +33,8 @@ final readonly class Retry implements Middleware
         private RetryStrategy $strategy,
         private ClockInterface $clock,
         private Sleeper $sleeper,
+        private Telemetry $telemetry = new Telemetry,
+        private Attempts $attempts = new Attempts,
     ) {}
 
     public function handle(RequestInterface $request, Next $next): ResponseInterface
@@ -38,6 +43,8 @@ final readonly class Retry implements Middleware
         $body = $request->getBody();
 
         for ($attempt = 1; ; $attempt++) {
+            $this->attempts->current = $attempt;
+
             if ($attempt > 1) {
                 $body->rewind();
             }
@@ -62,6 +69,10 @@ final readonly class Retry implements Middleware
 
                 /** @var ResponseInterface $response one or the other is always set */
                 return $response;
+            }
+
+            if ($this->telemetry->enabled()) {
+                $this->telemetry->emit(new RetryScheduled($this->telemetry->snapshot($request), $attempt, $delay, $response?->getStatusCode()));
             }
 
             $this->sleeper->sleep($delay);
