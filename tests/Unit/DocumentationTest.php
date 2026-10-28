@@ -5,8 +5,8 @@ declare(strict_types=1);
 /**
  * The README, docs and agent skill name classes and link to each other.
  * When code moves, they're the first thing to go stale, so they're checked
- * like code: every toolbox class they name exists, and every relative link
- * and anchor resolves.
+ * like code: every toolbox class they name exists, every relative link
+ * and anchor resolves, and every PHP example parses.
  */
 const NAMESPACES = 'Auth|Bodies|Caching|Deprecation|Errors|Events|Http|Hydration|Integrity|Middleware|Observability|Pagination|RateLimits|Redaction|Requests|Retries|Signatures|Testing|Time|Webhooks';
 
@@ -78,6 +78,46 @@ it('links only to files and anchors that exist', function (string $file): void {
         if ($anchor !== null && str_ends_with($target, '.md')) {
             expect(in_array($anchor, anchors((string) file_get_contents($target)), true))->toBeTrue("{$file} links to {$link}, but there's no such heading");
         }
+    }
+
+    expect($text)->not->toBe('');
+})->with(documents());
+
+/**
+ * Examples are often fragments: a few constructor arguments, a method, an
+ * expression. One parses if any of the ways it could sit in real code does.
+ */
+function parses(string $code): bool
+{
+    $code = (string) preg_replace('/^\s*<\?php/', '', $code);
+    $placements = [
+        $code,
+        "abstract class Example extends Base {\n{$code}\n}",
+        "example(\n{$code}\n);",
+        '$example = '.rtrim(rtrim($code), ';').';',
+    ];
+
+    foreach ($placements as $placement) {
+        try {
+            PhpToken::tokenize("<?php\n{$placement}", TOKEN_PARSE);
+
+            return true;
+        } catch (ParseError) {
+            continue;
+        }
+    }
+
+    return false;
+}
+
+it('has only PHP examples that parse', function (string $file): void {
+    $text = (string) file_get_contents($file);
+    preg_match_all('/```php\n(.*?)```/s', $text, $blocks, PREG_OFFSET_CAPTURE);
+
+    foreach ($blocks[1] as [$code, $offset]) {
+        $line = substr_count(substr($text, 0, $offset), "\n") + 1;
+
+        expect(parses($code))->toBeTrue(basename($file).": the PHP example at line {$line} doesn't parse.");
     }
 
     expect($text)->not->toBe('');

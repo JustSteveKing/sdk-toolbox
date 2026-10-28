@@ -31,7 +31,7 @@ SDK Toolbox is a PHP library for building API SDKs on PSR-18: typed requests, a 
 - **`tests/Fixtures/Acme`** is a small SDK built the way the docs say to build one. `tests/Fixtures/Acme/types.php` holds PHPStan `assertType()` checks that generics carry through `send()` and `paginate()`. Add one when you add a generic API.
 - **`tests/Memory`** checks bounded memory. Keep pagination in it.
 - **Time.** Anything that waits takes a PSR-20 clock and a `Time\Sleeper`; tests use `Testing\FakeTime`. Nothing in the suite sleeps for real.
-- **Docs and skill.** `tests/Unit/DocumentationTest.php` checks that every `JustSteveKing\SdkToolbox\...` class named in `docs/`, `README.md` and the agent skill exists, and that every relative link resolves. When you rename or remove something, the test tells you which page to fix.
+- **Docs and skill.** `tests/Unit/DocumentationTest.php` checks that every `JustSteveKing\SdkToolbox\...` class named in `docs/`, `README.md` and the agent skill exists, that every relative link resolves, and that every PHP example parses (as a file, class members, arguments or an expression). When you rename or remove something, the test tells you which page to fix.
 
 ## Checks
 
