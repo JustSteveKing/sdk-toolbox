@@ -54,4 +54,5 @@ What the toolbox implements, and how far. "Experimental" marks a draft that is s
 - `X-RateLimit-*` and `RateLimit-Limit/Remaining/Reset`, including GitHub's;
 - `retry-after-ms`;
 - cursor, offset, page and Stripe-style `starting_after` pagination in response bodies, and a next-page URL in the body, treated like a `Link` header;
+- HMAC webhook signatures over a timestamp and the body, in Stripe's, Slack's and Ghost's dialects;
 - bare (unquoted) Idempotency-Key values, and idempotency keys under another header name, such as `X-Idempotency-Key`.

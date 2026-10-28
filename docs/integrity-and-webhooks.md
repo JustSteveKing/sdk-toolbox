@@ -101,6 +101,34 @@ new HmacWebhook($secret, header: 'X-Hub-Signature-256', prefix: 'sha256=')
 
 `algorithm:` is `sha256` or `sha512`, and `encoding:` is `hex` or `base64`. There's no timestamp in this scheme, so it can't stop a replay on its own; prefer Standard Webhooks where the API offers it. The tests use GitHub's documented example.
 
+### An HMAC of the body and a timestamp
+
+Stripe, Slack and Ghost sign a timestamp along with the body, so a stale delivery can be refused. Each writes it differently, and each has a named constructor:
+
+```php
+TimestampedHmacWebhook::stripe($secret);   // Stripe-Signature: t=...,v1=...
+TimestampedHmacWebhook::slack($secret);    // X-Slack-Signature: v0=..., X-Slack-Request-Timestamp
+TimestampedHmacWebhook::ghost($secret);    // X-Ghost-Signature: sha256=..., t=<milliseconds>
+```
+
+For another sender, describe its scheme:
+
+```php
+new TimestampedHmacWebhook(
+    $secret,
+    header: 'X-Acme-Signature',
+    signedPayload: '{timestamp}.{body}',
+    signatureKey: 'v1',
+    timestampHeader: null,   // or the header the timestamp has to itself
+)
+```
+
+- **Freshness:** the timestamp has to be within `tolerance` seconds of now (300 by default), either way; a tolerance under one second is refused.
+- **Secret rotation:** every signature under `signatureKey` is tried, and any other key is ignored, which is how Stripe says to avoid a downgrade to its test-only `v0`.
+- **Replays:** `check()` returns the signed timestamp. Deduplicate on the event's own ID too.
+
+There's no standard here; the tests use Slack's published example, and Stripe's and Ghost's documented steps.
+
 ### RFC 9421 signed webhooks
 
 ```php
