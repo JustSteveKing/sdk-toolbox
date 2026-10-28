@@ -55,4 +55,4 @@ A recorded fixture's name is letters, digits, `-`, `_` and `/`, and resolves ins
 
 ## Reporting a vulnerability
 
-Email steve@juststeveking.com rather than opening a public issue.
+Please don't open a public issue. Use GitHub's [private vulnerability reporting](https://github.com/JustSteveKing/sdk-toolbox/security/advisories/new), or email steve@juststeveking.com. [SECURITY.md](../SECURITY.md) has the details.

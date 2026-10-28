@@ -16,7 +16,14 @@ const NAMESPACES = 'Auth|Bodies|Caching|Deprecation|Errors|Events|Http|Hydration
 function documents(): array
 {
     $root = dirname(__DIR__, 2);
-    $files = [$root.'/README.md', $root.'/AGENTS.md', ...glob($root.'/docs/*.md') ?: []];
+    $files = [
+        $root.'/README.md',
+        $root.'/AGENTS.md',
+        $root.'/CONTRIBUTING.md',
+        $root.'/SECURITY.md',
+        $root.'/CHANGELOG.md',
+        ...glob($root.'/docs/*.md') ?: [],
+    ];
     $skills = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root.'/resources/boost', FilesystemIterator::SKIP_DOTS));
 
     foreach ($skills as $file) {

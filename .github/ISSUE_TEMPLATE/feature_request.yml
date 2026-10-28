@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest something the toolbox should do.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What you're trying to do in your SDK, and what gets in the way.
+    validations:
+      required: true
+  - type: input
+    id: standard
+    attributes:
+      label: The standard it follows
+      description: The RFC, Internet-Draft or PSR, and the section, if there is one. Features follow a published standard where one exists.
+      placeholder: RFC 9110 section 13.1.1
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you'd like
+      description: How you'd want to use it, ideally as a short code sample.
+      render: php

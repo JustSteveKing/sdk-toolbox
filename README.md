@@ -1,5 +1,12 @@
 # SDK Toolbox
 
+[![Latest version](https://img.shields.io/packagist/v/juststeveking/sdk-toolbox.svg)](https://packagist.org/packages/juststeveking/sdk-toolbox)
+[![PHP version](https://img.shields.io/packagist/dependency-v/juststeveking/sdk-toolbox/php.svg)](https://packagist.org/packages/juststeveking/sdk-toolbox)
+[![CI](https://github.com/JustSteveKing/sdk-toolbox/actions/workflows/ci.yml/badge.svg)](https://github.com/JustSteveKing/sdk-toolbox/actions/workflows/ci.yml)
+[![PHPStan](https://img.shields.io/badge/PHPStan-level%20max-brightgreen.svg)](phpstan.neon)
+[![Total downloads](https://img.shields.io/packagist/dt/juststeveking/sdk-toolbox.svg)](https://packagist.org/packages/juststeveking/sdk-toolbox)
+[![Licence](https://img.shields.io/packagist/l/juststeveking/sdk-toolbox.svg)](LICENSE.md)
+
 A PHP library for building API SDKs. You describe the API with a connector and each endpoint with a small request class. The toolbox handles the rest the way the HTTP standards say a client should:
 
 - retries;
@@ -226,7 +233,9 @@ The package ships a skill that teaches an agent to build SDKs this way, in `reso
 
 Working on the toolbox itself? Read [AGENTS.md](AGENTS.md).
 
-### Working on it
+### Contributing
+
+Issues and pull requests are welcome: [CONTRIBUTING.md](CONTRIBUTING.md) says how, and questions are best asked in [Discussions](https://github.com/JustSteveKing/sdk-toolbox/discussions). Report security problems privately, as [SECURITY.md](SECURITY.md) describes. Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md), and [CHANGELOG.md](CHANGELOG.md) lists what changed in each release.
 
 ```bash
 composer test      # Pest

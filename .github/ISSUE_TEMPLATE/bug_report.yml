@@ -1,0 +1,39 @@
+name: Bug report
+description: Something in the toolbox doesn't behave as its docs say.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce it
+      description: The smallest connector and request that show the problem, or a failing test. Leave out real credentials.
+      render: php
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: SDK Toolbox version
+      placeholder: 0.0.1
+    validations:
+      required: true
+  - type: input
+    id: php
+    attributes:
+      label: PHP version
+      placeholder: "8.4"
+    validations:
+      required: true
+  - type: input
+    id: client
+    attributes:
+      label: PSR-18 client
+      description: Which HTTP client is underneath, and its version.
+      placeholder: symfony/http-client 8.1
