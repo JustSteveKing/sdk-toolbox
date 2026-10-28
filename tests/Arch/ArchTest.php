@@ -39,6 +39,8 @@ arch('values are immutable')
         'JustSteveKing\SdkToolbox\Bodies',
         'JustSteveKing\SdkToolbox\Auth',
         'JustSteveKing\SdkToolbox\Redaction',
+        'JustSteveKing\SdkToolbox\Pagination',
+        'JustSteveKing\SdkToolbox\Hydration',
     ])
     ->classes()
     ->toBeReadonly()
@@ -46,6 +48,9 @@ arch('values are immutable')
         'JustSteveKing\SdkToolbox\Http\Method',
         'JustSteveKing\SdkToolbox\Http\QueryString',
         'JustSteveKing\SdkToolbox\Http\StructuredFields',
+        'JustSteveKing\SdkToolbox\Http\Links',
+        'JustSteveKing\SdkToolbox\Http\JsonPath',
+        'JustSteveKing\SdkToolbox\Http\Query',
         'JustSteveKing\SdkToolbox\Bodies\EncodesJson',
         'JustSteveKing\SdkToolbox\Bodies\JsonPointer',
     ]);

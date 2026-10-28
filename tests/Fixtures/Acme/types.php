@@ -20,3 +20,11 @@ $acme = new Acme('token', new FakeClient);
 assertType(JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\Project::class, $acme->send(new GetProject('prj_1')));
 assertType(Response::class, $acme->response(new GetProject('prj_1')));
 assertType(Acme::class, $acme->withHeaders(['X-Trace' => '1']));
+
+assertType(JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\Member::class, $acme->send(new JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\GetMember('m_1')));
+assertType('list<'.JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\Member::class.'>', $acme->send(new JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\ListMembers));
+assertType('JustSteveKing\SdkToolbox\Pagination\Paginator<JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\Member>', $acme->paginate(new JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\ListMembers, new JustSteveKing\SdkToolbox\Pagination\LinkPagination));
+
+foreach ($acme->paginate(new JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\ListMembers, new JustSteveKing\SdkToolbox\Pagination\LinkPagination) as $member) {
+    assertType(JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\Member::class, $member);
+}

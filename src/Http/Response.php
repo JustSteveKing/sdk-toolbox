@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace JustSteveKing\SdkToolbox\Http;
 
 use JsonException;
+use JustSteveKing\SdkToolbox\Errors\HydrationException;
+use JustSteveKing\SdkToolbox\Errors\InvalidRequestException;
 use JustSteveKing\SdkToolbox\Errors\InvalidResponseException;
 use JustSteveKing\SdkToolbox\Errors\ProblemDetails;
+use JustSteveKing\SdkToolbox\Hydration\Hydrator;
 use JustSteveKing\SdkToolbox\RateLimits\RateLimit;
 use JustSteveKing\SdkToolbox\RateLimits\RateLimits;
 use JustSteveKing\SdkToolbox\Retries\RetryAfter;
@@ -24,6 +27,7 @@ final readonly class Response
         private ResponseInterface $response,
         private RequestInterface $request,
         private ClockInterface $clock = new SystemClock,
+        private ?Hydrator $hydrator = null,
     ) {}
 
     public function status(): int
@@ -91,6 +95,49 @@ final readonly class Response
     }
 
     /**
+     * A value from the JSON body by dotted path, such as `meta.next_cursor`,
+     * or null when it isn't there.
+     */
+    public function get(string $path): mixed
+    {
+        return JsonPath::get($this->json(), $path);
+    }
+
+    /**
+     * The JSON body, or the part of it at a dotted path, as a typed object.
+     *
+     *     $response->map(Project::class);
+     *     $response->map(Project::class, at: 'data');
+     *
+     * @template T of object
+     *
+     * @param  class-string<T>  $class
+     * @return T
+     *
+     * @throws HydrationException when the data doesn't fit the class
+     */
+    public function map(string $class, ?string $at = null): object
+    {
+        return $this->hydrator()->hydrate($class, JsonPath::get($this->json(), $at));
+    }
+
+    /**
+     * The JSON body, or the part of it at a dotted path, as a list of typed
+     * objects.
+     *
+     * @template T of object
+     *
+     * @param  class-string<T>  $class
+     * @return list<T>
+     *
+     * @throws HydrationException when the data isn't a list of the class
+     */
+    public function mapList(string $class, ?string $at = null): array
+    {
+        return $this->hydrator()->hydrateList($class, JsonPath::get($this->json(), $at));
+    }
+
+    /**
      * Whether the body is an RFC 9457 problem details object.
      */
     public function isProblem(): bool
@@ -130,6 +177,13 @@ final readonly class Response
     public function retryAfter(): ?float
     {
         return RetryAfter::from($this->response, $this->clock);
+    }
+
+    private function hydrator(): Hydrator
+    {
+        return $this->hydrator ?? throw new InvalidRequestException(
+            'No hydrator to map the response with. Install cuyz/valinor, or give the connector a Hydrator.',
+        );
     }
 
     public function psr(): ResponseInterface

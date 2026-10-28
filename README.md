@@ -22,7 +22,8 @@ fakes, under different rules:
   - RFC 9457 errors, RFC 9110 method semantics
   - RFC 7396 Merge Patch, RFC 6902 JSON Patch, RFC 7578 multipart
   - RFC 9110 `Retry-After`, Idempotency-Key, RateLimit headers
-  - more to come: pagination, caching, deprecation
+  - RFC 8288 `Link` pagination
+  - more to come: caching, deprecation
 
 Requires PHP 8.5. It's at 0.x and not on Packagist yet.
 
@@ -100,6 +101,56 @@ exceptions: new ProblemTypes([
 ```
 
 - No response at all is a `TransportException`.
+
+## Typed results
+
+`$response->map(Project::class)` and `$response->mapList(Member::class, at: 'data')`
+turn JSON into your own readonly classes, through a `Hydrator`.
+
+The toolbox ships `ValinorHydrator`. Install `cuyz/valinor` and it's used
+automatically. It is:
+
+- strict about types: a string where an int belongs is an error, not a cast;
+- relaxed about extra fields, so a field the API adds later breaks nothing;
+- able to map `snake_case` keys to `camelCase` properties.
+
+A response that doesn't fit throws `HydrationException`, which names the
+field that broke. Pass any other `Hydrator` to the connector to use
+something else.
+
+## Pagination
+
+```php
+foreach ($acme->paginate(new ListMembers, new CursorPagination('meta.next_cursor')) as $member) {
+    // every member, a page at a time
+}
+```
+
+The same request returns one page from `send()` and every page from
+`paginate()`. Its `result()` reads a page into items, and a strategy works
+out the next request:
+
+| Strategy | For |
+|---|---|
+| `LinkPagination` | `Link: <...>; rel="next"` (RFC 8288), as GitHub does it |
+| `CursorPagination` | a cursor in the body, sent back as a query parameter |
+| `StartingAfterPagination` | Stripe's `has_more` and `starting_after` |
+| `OffsetPagination` | `offset` and `limit`; a short page is the last |
+| `PagePagination` | `page`, stopping on an empty or short page, or at the last page the body names |
+
+Pagination is safe and bounded:
+
+- Only one page is in memory at a time. A test walks 100,000 items and
+  checks memory stays flat.
+- Every page goes through retries, the throttle and your middleware.
+- A `next` link that leaves the base URI is refused.
+- A page that points back at itself throws rather than looping, and
+  `maxPages` caps longer cycles.
+- `take(n)` fetches only the pages it needs, and `pages()` gives each page
+  with its response.
+
+PHPStan knows the item type throughout: `paginate(new ListMembers, ...)` is
+a `Paginator<Member>`.
 
 ## Retries
 

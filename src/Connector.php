@@ -12,12 +12,17 @@ use JustSteveKing\SdkToolbox\Errors\HttpException;
 use JustSteveKing\SdkToolbox\Errors\InvalidRequestException;
 use JustSteveKing\SdkToolbox\Errors\StatusExceptions;
 use JustSteveKing\SdkToolbox\Errors\TransportException;
+use JustSteveKing\SdkToolbox\Errors\UnsafeUriException;
 use JustSteveKing\SdkToolbox\Http\BaseUri;
 use JustSteveKing\SdkToolbox\Http\QueryString;
 use JustSteveKing\SdkToolbox\Http\Response;
+use JustSteveKing\SdkToolbox\Hydration\Hydrator;
+use JustSteveKing\SdkToolbox\Hydration\ValinorHydrator;
 use JustSteveKing\SdkToolbox\Middleware\Middleware;
 use JustSteveKing\SdkToolbox\Middleware\Next;
 use JustSteveKing\SdkToolbox\Middleware\Pipeline;
+use JustSteveKing\SdkToolbox\Pagination\Pagination;
+use JustSteveKing\SdkToolbox\Pagination\Paginator;
 use JustSteveKing\SdkToolbox\RateLimits\Throttle;
 use JustSteveKing\SdkToolbox\Redaction\Redactor;
 use JustSteveKing\SdkToolbox\Requests\HasBody;
@@ -68,6 +73,8 @@ class Connector
 
     private readonly Redactor $redactor;
 
+    private readonly ?Hydrator $hydrator;
+
     /**
      * @param  string  $baseUri  every request path is appended to this, and can't leave it
      * @param  list<Middleware>  $middleware  run in order, before authentication
@@ -77,6 +84,7 @@ class Connector
      * @param  RetryStrategy  $retry  RetryPolicy::standard() unless told otherwise; RetryPolicy::none() turns retries off
      * @param  Throttle|null  $throttle  wait for a spent rate limit to reset before sending, instead of collecting 429s
      * @param  IdempotencyKey  $idempotencyKeys  how Idempotent requests format their key
+     * @param  Hydrator|null  $hydrator  maps responses to objects; ValinorHydrator when cuyz/valinor is installed
      */
     public function __construct(
         string $baseUri,
@@ -95,6 +103,7 @@ class Connector
         private readonly IdempotencyKey $idempotencyKeys = IdempotencyKey::Quoted,
         private readonly ClockInterface $clock = new SystemClock,
         private readonly Sleeper $sleeper = new SystemSleeper,
+        ?Hydrator $hydrator = null,
     ) {
         $this->baseUri = new BaseUri($baseUri);
 
@@ -106,6 +115,7 @@ class Connector
 
         $sensitive = $auth?->sensitive() ?? ['headers' => [], 'query' => []];
 
+        $this->hydrator = $hydrator ?? (ValinorHydrator::available() ? new ValinorHydrator : null);
         $this->http = $http ?? Psr18ClientDiscovery::find();
         $this->requests = $requests ?? Psr17FactoryDiscovery::findRequestFactory();
         $this->streams = $streams ?? Psr17FactoryDiscovery::findStreamFactory();
@@ -144,15 +154,44 @@ class Connector
      */
     public function response(Request $request): Response
     {
-        $psr = $this->toPsr($request);
+        return $this->dispatch($this->toPsr($request));
+    }
 
-        try {
-            $answer = $this->pipeline()->sendRequest($psr);
-        } catch (ClientExceptionInterface $e) {
-            throw TransportException::from($e, $psr, $this->redactor);
-        }
+    /**
+     * Every item across every page, as the pagination strategy walks them.
+     *
+     * The request's result() reads one page into its items; the strategy
+     * decides what the next page's request is. Each page is sent like any
+     * other request, and an error status on any page throws.
+     *
+     * @template TItem
+     *
+     * @param  Request<iterable<TItem>>  $request
+     * @return Paginator<TItem>
+     */
+    public function paginate(Request $request, Pagination $pagination, ?int $maxPages = null): Paginator
+    {
+        return new Paginator(
+            $request,
+            $this->toPsr($request),
+            $pagination,
+            function (RequestInterface $page): Response {
+                // A next link comes from the API's response; it still can't
+                // take the request, and its credentials, off the base URI.
+                if (! $this->baseUri->allows((string) $page->getUri())) {
+                    throw new UnsafeUriException("The next page is outside the base URI: [{$this->redactor->uri((string) $page->getUri())}].");
+                }
 
-        return new Response($answer, $psr, $this->clock);
+                $response = $this->dispatch($page);
+
+                if ($response->failed()) {
+                    throw $this->exceptions->map($response, $this->redactor);
+                }
+
+                return $response;
+            },
+            $maxPages,
+        );
     }
 
     /**
@@ -246,6 +285,20 @@ class Connector
             'http' => $this->http::class,
             'middleware' => array_map(static fn (Middleware $m): string => $m::class, $this->middleware),
         ];
+    }
+
+    /**
+     * @throws TransportException when no response came back
+     */
+    private function dispatch(RequestInterface $psr): Response
+    {
+        try {
+            $answer = $this->pipeline()->sendRequest($psr);
+        } catch (ClientExceptionInterface $e) {
+            throw TransportException::from($e, $psr, $this->redactor);
+        }
+
+        return new Response($answer, $psr, $this->clock, $this->hydrator);
     }
 
     private function pipeline(): Pipeline

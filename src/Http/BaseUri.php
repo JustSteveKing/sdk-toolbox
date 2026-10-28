@@ -74,6 +74,16 @@ final readonly class BaseUri
         return $resolved;
     }
 
+    /**
+     * Whether an absolute URI, such as a `next` link, is under this base.
+     */
+    public function allows(string $uri): bool
+    {
+        $parsed = Uri::parse($uri);
+
+        return $parsed !== null && $this->contains($parsed);
+    }
+
     public function scheme(): string
     {
         return (string) $this->uri->getScheme();
