@@ -4,6 +4,10 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 
 ## [Unreleased]
 
+## [0.0.2] - 2026-10-28
+
+What building a real SDK on the toolbox, and researching others, showed it was missing. Everything already in 0.0.1 behaves as it did; the new options default to the old behaviour.
+
 ### Added
 
 - `NextUrlPagination`, for APIs that put the next page's URL in the body. A relative URL resolves against the request, and one outside the base URI is refused like a `Link` header's.
@@ -36,5 +40,6 @@ The first release.
 - Testing tools: a fake client, fake time and recorded fixtures.
 - An agent skill for building SDKs with the toolbox.
 
-[Unreleased]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.1...HEAD
+[Unreleased]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.2...HEAD
+[0.0.2]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/JustSteveKing/sdk-toolbox/releases/tag/v0.0.1
