@@ -25,7 +25,7 @@ What the toolbox implements, and how far. "Experimental" marks a draft that is s
 | RFC 6749 OAuth 2.0 | Proposed Standard | client credentials, authorisation code, refresh |
 | RFC 7636 PKCE | Proposed Standard | S256 only, for every client |
 | RFC 8628 Device Authorization | Proposed Standard | start and poll |
-| RFC 9700 OAuth Security BCP | Best Current Practice | PKCE everywhere, no implicit grant, single-flight refresh |
+| RFC 9700 OAuth Security BCP | Best Current Practice | PKCE everywhere, no implicit grant, single-flight refresh, refresh-token rotation (§4.14.2) |
 | draft-ietf-httpapi-ratelimit-headers-11 | Internet-Draft, expires 2026-11-24 | **experimental:** `RateLimit` and `RateLimit-Policy` read |
 | draft-ietf-httpapi-idempotency-key-header-08 | Internet-Draft | **experimental:** keys sent and kept across retries |
 | draft-ietf-httpapi-privacy | Internet-Draft, in the RFC Editor queue | no credentials over plain HTTP without opting in |

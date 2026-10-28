@@ -59,7 +59,7 @@ $oauth = new Auth\OAuth\OAuthClient(tokenEndpoint: '...', clientId: $id, clientS
 |---|---|
 | `new Auth\OAuth\ClientCredentials($oauth, ['scope'])` | server to server; needs a client secret |
 | `new Auth\OAuth\AuthorizationCode($oauth, $redirectUri)` | for a user: `start()`, keep the `AuthorizationRequest` in the session, then `exchange($started, $code, $state)` |
-| `new Auth\OAuth\RefreshingToken($oauth, "user:{$id}", $store, $lock)` | after the exchange: keeps that user's token fresh |
+| `new Auth\OAuth\RefreshingToken($oauth, "user:{$id}", $store, $lock)` | after the exchange: keeps that user's token fresh; add `rotating: true` when the server rotates refresh tokens and omits a spent one |
 | `new Auth\OAuth\DeviceAuthorization($oauth)` | CLIs: `start()`, show the code, `poll($code)` |
 
 - **Storage:** with more than one process, use `Auth\OAuth\Psr16TokenStore` and a `RefreshLock` adapted from the framework's lock.

@@ -20,6 +20,15 @@ use JustSteveKing\SdkToolbox\Errors\OAuthException;
  *     $store->put("user:{$user->id}", $oauth->exchange(...));
  *
  *     auth: new RefreshingToken($oauth, "user:{$user->id}", $store, $lock),
+ *
+ * When a reply has no refresh token, RFC 6749 section 6 lets the client
+ * go on using the old one, and that's the default. A server that rotates
+ * refresh tokens (RFC 9700 section 4.14.2) may instead omit it when the
+ * old one is already spent, as Todoist does when a refresh is retried
+ * within its grace window; presenting the spent one later reads as a
+ * replay, and the server revokes the whole grant. For such a server pass
+ * `rotating: true`, and a reply without one leaves no refresh token
+ * stored: the user authorises again when the access token expires.
  */
 final readonly class RefreshingToken implements Refreshable
 {
@@ -33,13 +42,14 @@ final readonly class RefreshingToken implements Refreshable
         TokenStore $store,
         RefreshLock $lock = new ProcessLock,
         int $leeway = 30,
+        bool $rotating = false,
     ) {
         $this->provider = new TokenProvider(
             key: $key,
             store: $store,
             lock: $lock,
             clock: $client->clock,
-            fetch: static function (?AccessToken $current) use ($client): AccessToken {
+            fetch: static function (?AccessToken $current) use ($client, $rotating): AccessToken {
                 if ($current?->refreshToken === null) {
                     throw new OAuthException('no_refresh_token', 'There is no refresh token for this key; the user has to authorise again.');
                 }
@@ -50,8 +60,9 @@ final readonly class RefreshingToken implements Refreshable
                 );
 
                 // A server that doesn't issue a new refresh token expects the
-                // old one to go on being used.
-                return $fresh->refreshToken !== null ? $fresh : new AccessToken(
+                // old one to go on being used, unless it rotates them, when
+                // the old one is spent.
+                return $fresh->refreshToken !== null || $rotating ? $fresh : new AccessToken(
                     $fresh->token,
                     $fresh->expiresAt,
                     $current->refreshToken,

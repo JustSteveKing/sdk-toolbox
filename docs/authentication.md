@@ -86,6 +86,8 @@ auth: new RefreshingToken($oauth, "user:{$user->id}", $store, $lock),
 
 It refreshes shortly before expiry, and replaces the refresh token whenever the server issues a new one, as RFC 6749 §6 requires. With no refresh token left it throws `OAuthException` (`no_refresh_token`): the user has to authorise again.
 
+When a reply has no refresh token, the old one is kept, as RFC 6749 §6 allows. A server that rotates refresh tokens (RFC 9700 §4.14.2) can instead omit it because the old one is already spent: Todoist does this when a refresh is retried within its grace window, and presenting the spent token later reads as a replay that revokes the user's whole grant. Pass `rotating: true` for such a server, and a reply without a refresh token leaves none stored.
+
 ### For a CLI: the device flow
 
 ```php

@@ -43,6 +43,24 @@ it('keeps the old refresh token when the server issues no new one', function ():
     expect($store->get('user:1')?->refreshToken)->toBe('refresh-1');
 });
 
+it('never sends a spent refresh token again when the server rotates them (RFC 9700 4.14.2)', function (): void {
+    $time = new FakeTime;
+    $store = new InMemoryTokenStore;
+    $store->put('user:1', new AccessToken('old', $time->now()->modify('-1 minute'), 'refresh-1'));
+    $auth = new FakeClient(token('new'));
+    $api = userApi(new FakeClient(FakeResponse::empty(200), FakeResponse::empty(200)), new RefreshingToken(oauthClient($auth, $time), 'user:1', $store, rotating: true), $time);
+
+    $api->response(ping());
+
+    expect($store->get('user:1')?->token)->toBe('new')
+        ->and($store->get('user:1')?->refreshToken)->toBeNull();
+
+    $time->advance(3600);
+
+    expect(fn () => $api->response(ping()))->toThrow(OAuthException::class, 'no_refresh_token');
+    $auth->assertSentCount(1);
+});
+
 it('says the user has to authorise again when there is nothing to refresh with', function (): void {
     $time = new FakeTime;
     $store = new InMemoryTokenStore;
