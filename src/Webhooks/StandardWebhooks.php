@@ -24,6 +24,10 @@ use SensitiveParameter;
  * - **Replays:** the timestamp has to be within `tolerance` seconds of
  *   now, either way. Store `webhook-id`, which this returns, to drop
  *   repeats.
+ * - **Vendor prefixes:** Svix, which the standard grew out of, sends the
+ *   same headers as `svix-id`, `svix-timestamp` and `svix-signature`
+ *   unless a customer has them white-labelled. `headerPrefix` covers
+ *   that, and any sender doing the same.
  */
 final readonly class StandardWebhooks implements WebhookVerifier
 {
@@ -34,13 +38,19 @@ final readonly class StandardWebhooks implements WebhookVerifier
 
     /**
      * @param  string  $key  `whsec_...` for v1, `whpk_...` for v1a
+     * @param  string  $headerPrefix  `webhook-` as the standard has it, or a sender's own, such as `svix-`
      */
     public function __construct(
         #[SensitiveParameter]
         string $key,
         private int $tolerance = 300,
         private ClockInterface $clock = new SystemClock,
+        private string $headerPrefix = 'webhook-',
     ) {
+        if (preg_match('/^[A-Za-z0-9]+(-[A-Za-z0-9]+)*-$/', $headerPrefix) !== 1) {
+            throw new InvalidRequestException('A header prefix is letters and digits ending in a hyphen, such as `svix-`.');
+        }
+
         [$prefix, $encoded] = array_pad(explode('_', $key, 2), 2, '');
         $decoded = base64_decode($encoded, true);
 
@@ -58,18 +68,18 @@ final readonly class StandardWebhooks implements WebhookVerifier
     }
 
     /**
-     * Verifies, and returns the `webhook-id` to deduplicate on.
+     * Verifies, and returns the message ID (`webhook-id`) to deduplicate on.
      *
      * @throws InvalidSignatureException
      */
     public function check(RequestInterface $request): string
     {
-        $id = $request->getHeaderLine('webhook-id');
-        $timestamp = $request->getHeaderLine('webhook-timestamp');
-        $header = $request->getHeaderLine('webhook-signature');
+        $id = $request->getHeaderLine("{$this->headerPrefix}id");
+        $timestamp = $request->getHeaderLine("{$this->headerPrefix}timestamp");
+        $header = $request->getHeaderLine("{$this->headerPrefix}signature");
 
         if ($id === '' || $timestamp === '' || $header === '') {
-            throw new InvalidSignatureException('The webhook is missing webhook-id, webhook-timestamp or webhook-signature.');
+            throw new InvalidSignatureException("The webhook is missing {$this->headerPrefix}id, {$this->headerPrefix}timestamp or {$this->headerPrefix}signature.");
         }
 
         if (preg_match('/^\d+$/', $timestamp) !== 1 || abs($this->clock->now()->getTimestamp() - (int) $timestamp) > $this->tolerance) {
@@ -117,6 +127,6 @@ final readonly class StandardWebhooks implements WebhookVerifier
      */
     public function __debugInfo(): array
     {
-        return ['scheme' => $this->scheme, 'key' => '[redacted]'];
+        return ['scheme' => $this->scheme, 'headerPrefix' => $this->headerPrefix, 'key' => '[redacted]'];
     }
 }

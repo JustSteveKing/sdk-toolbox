@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use JustSteveKing\SdkToolbox\Errors\InvalidRequestException;
 use JustSteveKing\SdkToolbox\Errors\InvalidSignatureException;
 use JustSteveKing\SdkToolbox\Integrity\ContentDigest;
 use JustSteveKing\SdkToolbox\Signatures\MessageVerifier;
@@ -33,6 +34,25 @@ it('verifies the Standard Webhooks PHP library\'s own test vector', function ():
     expect((new StandardWebhooks(WHSEC, clock: new FakeTime('@1614265330')))->check($request))->toBe('msg_p5jXN8AQM9LWM0D4loKWxJek')
         ->and(StandardWebhooks::sign(WHSEC, 'msg_p5jXN8AQM9LWM0D4loKWxJek', 1614265330, '{"test": 2432232314}'))->toBe('v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=');
 });
+
+it('verifies Svix\'s own example under its svix- headers', function (): void {
+    // docs.svix.com/receiving/verifying-payloads/how-manual, "Example signatures".
+    $request = new ServerRequest('POST', 'https://app.test/webhooks', [
+        'svix-id' => 'msg_loFOjxBNrRLzqYUf',
+        'svix-timestamp' => '1731705121',
+        'svix-signature' => 'v1,rAvfW3dJ/X/qxhsaXPOyyCGmRKsaKWcsNccKXlIktD0=',
+    ], '{"event_type":"ping","data":{"success":true}}');
+
+    $svix = new StandardWebhooks('whsec_plJ3nmyCDGBKInavdOK15jsl', clock: new FakeTime('@1731705121'), headerPrefix: 'svix-');
+
+    expect($svix->check($request))->toBe('msg_loFOjxBNrRLzqYUf')
+        ->and(fn () => (new StandardWebhooks('whsec_plJ3nmyCDGBKInavdOK15jsl', clock: new FakeTime('@1731705121')))->verify($request))
+        ->toThrow(InvalidSignatureException::class, 'missing webhook-id');
+});
+
+it('refuses a header prefix that would not make header names', function (string $prefix): void {
+    expect(fn () => new StandardWebhooks(WHSEC, headerPrefix: $prefix))->toThrow(InvalidRequestException::class);
+})->with(['no hyphen' => 'svix', 'a space' => 'my svix-', 'empty' => '']);
 
 it('accepts any one valid signature, for key rotation', function (): void {
     $request = webhook([

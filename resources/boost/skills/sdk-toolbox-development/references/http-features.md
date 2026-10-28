@@ -48,7 +48,7 @@ Everything they see is already redacted. Don't log requests yourself in middlewa
 
 The SDK's users verify incoming webhooks with one of these, from `Webhooks\`:
 
-- `StandardWebhooks('whsec_...')`, whose `check()` returns the `webhook-id` to deduplicate on;
+- `StandardWebhooks('whsec_...')`, whose `check()` returns the `webhook-id` to deduplicate on (`headerPrefix: 'svix-'` for Svix's headers);
 - `HmacWebhook($secret, header: 'X-Signature', prefix: 'sha256=')`;
 - `SignedWebhook($messageVerifier)`.
 

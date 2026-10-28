@@ -36,7 +36,7 @@ What the toolbox implements, and how far. "Experimental" marks a draft that is s
 |---|---|---|
 | W3C Trace Context Level 1 | Recommendation | `traceparent` and `tracestate` propagation |
 | OpenTelemetry HTTP semantic conventions | Stable | a client span per attempt |
-| Standard Webhooks 1.0.0 | Community specification | `v1` and `v1a` verification, signing for tests |
+| Standard Webhooks 1.0.0 | Community specification | `v1` and `v1a` verification, signing for tests, and a sender's own header prefix (Svix's `svix-`) |
 
 ## PHP-FIG
 

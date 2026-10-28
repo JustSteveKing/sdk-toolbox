@@ -87,8 +87,9 @@ $id = $verifier->check($request);   // the webhook-id, to drop repeats
 - **Key rotation:** `webhook-signature` can hold several signatures, and any one valid one is enough.
 - **Replays:** keep the `webhook-id`s `check()` returns, and drop repeats.
 - **Testing your own handlers:** `StandardWebhooks::sign($secret, $id, $timestamp, $body)` makes the header.
+- **A vendor's prefix:** Svix, and senders that use it, send `svix-id`, `svix-timestamp` and `svix-signature`. Pass `headerPrefix: 'svix-'`.
 
-The tests use the official Standard Webhooks PHP library's own test vector.
+The tests use the official Standard Webhooks PHP library's own test vector, and Svix's published example for the `svix-` headers.
 
 ### An HMAC of the body
 
