@@ -24,7 +24,9 @@ fakes, under different rules:
   - RFC 9110 `Retry-After`, Idempotency-Key, RateLimit headers
   - RFC 8288 `Link` pagination
   - OAuth 2.0: RFC 6749, 6750, 7636 (PKCE), 8628 (device flow), 9700
-  - more to come: caching, deprecation
+  - RFC 9111 caching, RFC 9110 conditional requests, RFC 9745 Deprecation,
+    RFC 8594 Sunset, RFC 7240 Prefer
+  - more to come: logging, events and tracing
 
 Requires PHP 8.5. It's at 0.x and not on Packagist yet.
 
@@ -265,6 +267,101 @@ further off than `maxWait`, the throttle throws
 `RateLimitExceededException` without sending. A 429's `Retry-After` wins
 over the RateLimit fields, as the draft says.
 
+## HTTP caching
+
+Give the connector a PSR-16 store and it caches the way RFC 9111 says a
+private cache should:
+
+```php
+cache: $psr16Cache,
+```
+
+- **Reuse:** a fresh response is served without a request, with an `Age`
+  header. A stale one, or one marked `no-cache`, is revalidated with
+  `If-None-Match` and `If-Modified-Since`, and a 304 brings back the stored
+  body.
+- **Storage:** 200 and 203 responses to GET that can be reused, either
+  because they have `max-age` or `Expires`, or because they have a
+  validator.
+- **Never stored:**
+  - `no-store`, from either side;
+  - `Vary: *`;
+  - 429s;
+  - anything over 1MB.
+- **Separation:** entries are keyed on the request's credentials, so users
+  never see each other's responses, even through a shared Redis. `Vary` is
+  honoured.
+- **Invalidation:** a successful POST, PUT, PATCH or DELETE drops the
+  entry for its URI.
+
+There's no heuristic freshness. A response without `max-age` or `Expires`
+is always revalidated before reuse. Entries are plain arrays, never
+serialized objects.
+
+## Conditional requests
+
+Read a resource, keep its ETag, and send the change only if nobody else
+changed it in between:
+
+```php
+$etag = $acme->response(new GetProject($id))->etag();
+
+// in UpdateProject, which implements Conditional:
+public function precondition(): ?Precondition
+{
+    return Precondition::ifMatch($this->etag);
+}
+```
+
+A 412 throws `PreconditionFailedException`, and a 428 (the API requires a
+precondition) throws `PreconditionRequiredException`. Weak tags are
+refused in `If-Match`, since strong comparison means they could never
+match. `Precondition` also offers:
+
+- `ifNoneMatchAny()`: create, but never overwrite;
+- `ifExists()`;
+- `ifUnmodifiedSince()`.
+
+## Deprecation and Sunset
+
+`$response->deprecation()` reads:
+
+- `Deprecation` (RFC 9745's `@timestamp`, or the undated `?1` from older
+  drafts);
+- `Sunset` (RFC 8594);
+- their `Link` relations.
+
+To hear about them as they happen:
+
+```php
+deprecations: new Deprecations(fn (DeprecationNotice $n) => $logger->warning($n->describe())),
+deprecations: Deprecations::strict(),   // fail an SDK's own test suite instead
+```
+
+The handler runs once per endpoint per process. Nothing about the request
+changes: both headers are hints.
+
+## Preferences and long-running operations
+
+A request that implements `HasPreferences` sends `Prefer` (RFC 7240):
+
+```php
+Preferences::none()->returnMinimal()->respondAsync()->wait(10)
+```
+
+`$response->preferenceApplied()` says which preferences the server honoured.
+
+`$connector->await($request)` handles the 202 pattern:
+
+1. A `202 Accepted` with a `Location` is polled with GET, waiting for
+   `Retry-After` (or `interval`) between polls.
+2. A 303 from the monitor is followed to the result; a 200 is the result.
+3. The original request's `result()` reads it.
+
+A synchronous answer comes straight back. Monitors outside the base URI
+are refused. When `timeout` is reached, `OperationTimeoutException`
+carries the monitor URI so you can check again later.
+
 ## Middleware
 
 ```php
@@ -274,9 +371,18 @@ interface Middleware
 }
 ```
 
-The order is retries, then the throttle, then your middleware in order,
-then authentication (including the one retry after a rejected token),
-then the HTTP client. So every retry is throttled,
+The order is:
+
+1. retries
+2. the throttle
+3. the deprecation watcher
+4. your middleware, in order
+5. authentication (including the one retry after a rejected token)
+6. the HTTP cache
+7. the HTTP client
+
+The cache comes after authentication so it can key entries on
+credentials. So every retry is throttled,
 passes through your middleware and is authenticated afresh. Nothing before
 authentication, a logger included, sees the credentials. The client can be any PSR-18 client, an HTTPlug
 `PluginClient` included.

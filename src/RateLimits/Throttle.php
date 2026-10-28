@@ -72,7 +72,9 @@ final readonly class Throttle implements Middleware
             ? RetryAfter::from($response, $this->clock)
             : null;
 
-        if ($wait === null) {
+        // RateLimit fields SHOULD be ignored on a response from a cache
+        // (draft section 7.3), and a cached response carries Age.
+        if ($wait === null && ! $response->hasHeader('Age')) {
             $limit = RateLimits::mostRestrictive($response, $this->clock);
             $wait = $limit !== null && $limit->exhausted() ? $limit->resetIn : null;
         }

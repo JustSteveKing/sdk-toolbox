@@ -54,3 +54,31 @@ function ping(array $query = [], array $headers = []): Request
 }
 
 require_once __DIR__.'/OAuth/helpers.php';
+
+/**
+ * A DELETE to a path that returns the raw response.
+ *
+ * @return Request<Response>
+ */
+function deleteOf(string $path): Request
+{
+    return new readonly class($path) implements Request
+    {
+        public function __construct(private string $path) {}
+
+        public function method(): Method
+        {
+            return Method::Delete;
+        }
+
+        public function path(): string
+        {
+            return $this->path;
+        }
+
+        public function result(Response $response): Response
+        {
+            return $response;
+        }
+    };
+}

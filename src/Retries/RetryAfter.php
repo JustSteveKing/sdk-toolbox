@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace JustSteveKing\SdkToolbox\Retries;
 
-use DateTimeImmutable;
-use DateTimeZone;
+use JustSteveKing\SdkToolbox\Http\HttpDate;
 use JustSteveKing\SdkToolbox\Time\Seconds;
 use Psr\Clock\ClockInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -22,12 +21,6 @@ use Psr\Http\Message\ResponseInterface;
  */
 final class RetryAfter
 {
-    private const array DATE_FORMATS = [
-        'D, d M Y H:i:s \G\M\T',
-        'l, d-M-y H:i:s \G\M\T',
-        'D M j H:i:s Y',
-    ];
-
     /**
      * Seconds to wait, or null if the response doesn't say.
      */
@@ -51,12 +44,10 @@ final class RetryAfter
             return (float) $value;
         }
 
-        foreach (self::DATE_FORMATS as $format) {
-            $date = DateTimeImmutable::createFromFormat($format, $value, new DateTimeZone('UTC'));
+        $date = HttpDate::parse($value);
 
-            if ($date !== false && DateTimeImmutable::getLastErrors() === false) {
-                return max(0.0, Seconds::between($clock->now(), $date));
-            }
+        if ($date !== null) {
+            return max(0.0, Seconds::between($clock->now(), $date));
         }
 
         return null;

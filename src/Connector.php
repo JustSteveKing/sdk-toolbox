@@ -8,9 +8,12 @@ use Http\Discovery\Psr17FactoryDiscovery;
 use Http\Discovery\Psr18ClientDiscovery;
 use JustSteveKing\SdkToolbox\Auth\Authenticate;
 use JustSteveKing\SdkToolbox\Auth\Authenticator;
+use JustSteveKing\SdkToolbox\Caching\HttpCache;
+use JustSteveKing\SdkToolbox\Deprecation\Deprecations;
 use JustSteveKing\SdkToolbox\Errors\ExceptionMapper;
 use JustSteveKing\SdkToolbox\Errors\HttpException;
 use JustSteveKing\SdkToolbox\Errors\InvalidRequestException;
+use JustSteveKing\SdkToolbox\Errors\OperationTimeoutException;
 use JustSteveKing\SdkToolbox\Errors\StatusExceptions;
 use JustSteveKing\SdkToolbox\Errors\TransportException;
 use JustSteveKing\SdkToolbox\Errors\UnsafeUriException;
@@ -26,8 +29,10 @@ use JustSteveKing\SdkToolbox\Pagination\Pagination;
 use JustSteveKing\SdkToolbox\Pagination\Paginator;
 use JustSteveKing\SdkToolbox\RateLimits\Throttle;
 use JustSteveKing\SdkToolbox\Redaction\Redactor;
+use JustSteveKing\SdkToolbox\Requests\Conditional;
 use JustSteveKing\SdkToolbox\Requests\HasBody;
 use JustSteveKing\SdkToolbox\Requests\HasHeaders;
+use JustSteveKing\SdkToolbox\Requests\HasPreferences;
 use JustSteveKing\SdkToolbox\Requests\HasQuery;
 use JustSteveKing\SdkToolbox\Requests\Idempotent;
 use JustSteveKing\SdkToolbox\Requests\Request;
@@ -35,6 +40,7 @@ use JustSteveKing\SdkToolbox\Retries\IdempotencyKey;
 use JustSteveKing\SdkToolbox\Retries\Retry;
 use JustSteveKing\SdkToolbox\Retries\RetryPolicy;
 use JustSteveKing\SdkToolbox\Retries\RetryStrategy;
+use JustSteveKing\SdkToolbox\Time\Seconds;
 use JustSteveKing\SdkToolbox\Time\Sleeper;
 use JustSteveKing\SdkToolbox\Time\SystemClock;
 use JustSteveKing\SdkToolbox\Time\SystemSleeper;
@@ -45,6 +51,8 @@ use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\StreamFactoryInterface;
+use Psr\SimpleCache\CacheInterface;
+use Uri\Rfc3986\Uri;
 
 /**
  * An API: where it is, how to authenticate, and how to send requests to it.
@@ -53,8 +61,9 @@ use Psr\Http\Message\StreamFactoryInterface;
  * details, or hold one; either works, because nothing here relies on being
  * extended. It's immutable: the `with*()` methods return a changed copy.
  *
- * Requests go through the retry policy, the throttle if there is one, the
- * middleware in order, the authenticator, then the PSR-18 client. So each
+ * Requests go through the retry policy, the throttle and deprecation
+ * watcher if there are any, the middleware in order, the authenticator,
+ * the HTTP cache if there is one, then the PSR-18 client. So each
  * retry is throttled, passes through every middleware and is
  * authenticated afresh. Bring your application's client, or leave it out and
  * php-http/discovery finds an installed one.
@@ -75,6 +84,8 @@ class Connector
 
     private readonly ?Hydrator $hydrator;
 
+    private readonly ?HttpCache $cache;
+
     /**
      * @param  string  $baseUri  every request path is appended to this, and can't leave it
      * @param  list<Middleware>  $middleware  run in order, before authentication
@@ -85,6 +96,8 @@ class Connector
      * @param  Throttle|null  $throttle  wait for a spent rate limit to reset before sending, instead of collecting 429s
      * @param  IdempotencyKey  $idempotencyKeys  how Idempotent requests format their key
      * @param  Hydrator|null  $hydrator  maps responses to objects; ValinorHydrator when cuyz/valinor is installed
+     * @param  CacheInterface|null  $cache  a PSR-16 store for an RFC 9111 private HTTP cache; no caching without one
+     * @param  Deprecations|null  $deprecations  told about Deprecation and Sunset headers, once per endpoint
      */
     public function __construct(
         string $baseUri,
@@ -104,6 +117,8 @@ class Connector
         private readonly ClockInterface $clock = new SystemClock,
         private readonly Sleeper $sleeper = new SystemSleeper,
         ?Hydrator $hydrator = null,
+        ?CacheInterface $cache = null,
+        private readonly ?Deprecations $deprecations = null,
     ) {
         $this->baseUri = new BaseUri($baseUri);
 
@@ -120,6 +135,7 @@ class Connector
         $this->requests = $requests ?? Psr17FactoryDiscovery::findRequestFactory();
         $this->streams = $streams ?? Psr17FactoryDiscovery::findStreamFactory();
         $this->redactor = ($redactor ?? new Redactor)->with($sensitive['headers'], $sensitive['query']);
+        $this->cache = $cache === null ? null : new HttpCache($cache, $this->clock, $this->redactor);
     }
 
     /**
@@ -158,6 +174,54 @@ class Connector
     }
 
     /**
+     * Sends a request that may be answered asynchronously, and waits for
+     * the result.
+     *
+     * A 202 Accepted with a `Location` is an operation in progress, and
+     * `Location` is where its status lives. That monitor is polled with
+     * GET, waiting as long as `Retry-After` says (or `interval`), until it
+     * stops answering 202. A 303 See Other there points at the result,
+     * which is fetched; a 200 is the result itself. Either way, the
+     * original request's result() reads it. Any other response is returned
+     * to result() as it is, so an API that answers synchronously works too.
+     *
+     * The monitor and result URIs have to be under the base URI, like any
+     * other request. RFC 7240 leaves this pattern to APIs; it's the one
+     * Microsoft's and Azure's guidelines use, and api-toolbox emits.
+     *
+     * @template TResult
+     *
+     * @param  Request<TResult>  $request
+     * @return TResult
+     *
+     * @throws OperationTimeoutException when it's still running after `timeout` seconds
+     */
+    public function await(Request $request, float $timeout = 300.0, float $interval = 2.0): mixed
+    {
+        $started = $this->clock->now();
+        $response = $this->checked($this->toPsr($request));
+
+        while ($response->status() === 202 && ($location = $response->header('Location') ?? $response->header('Content-Location')) !== null) {
+            $monitor = $this->follow($response, $location);
+            $wait = $response->retryAfter() ?? $interval;
+            $waited = Seconds::between($started, $this->clock->now());
+
+            if ($waited + $wait > $timeout) {
+                throw new OperationTimeoutException($this->redactor->uri($monitor), $waited);
+            }
+
+            $this->sleeper->sleep($wait);
+            $response = $this->checked($this->requests->createRequest('GET', $monitor));
+
+            if ($response->status() === 303 && ($result = $response->header('Location')) !== null) {
+                $response = $this->checked($this->requests->createRequest('GET', $this->follow($response, $result)));
+            }
+        }
+
+        return $request->result($response);
+    }
+
+    /**
      * Every item across every page, as the pagination strategy walks them.
      *
      * The request's result() reads one page into its items; the strategy
@@ -175,21 +239,7 @@ class Connector
             $request,
             $this->toPsr($request),
             $pagination,
-            function (RequestInterface $page): Response {
-                // A next link comes from the API's response; it still can't
-                // take the request, and its credentials, off the base URI.
-                if (! $this->baseUri->allows((string) $page->getUri())) {
-                    throw new UnsafeUriException("The next page is outside the base URI: [{$this->redactor->uri((string) $page->getUri())}].");
-                }
-
-                $response = $this->dispatch($page);
-
-                if ($response->failed()) {
-                    throw $this->exceptions->map($response, $this->redactor);
-                }
-
-                return $response;
-            },
+            $this->checked(...),
             $maxPages,
         );
     }
@@ -217,6 +267,14 @@ class Connector
             ...$this->headers,
             ...($request instanceof HasHeaders ? $request->headers() : []),
         ];
+
+        if ($request instanceof HasPreferences && ! $request->preferences()->isEmpty()) {
+            $headers['Prefer'] = $request->preferences()->header();
+        }
+
+        if ($request instanceof Conditional) {
+            $headers = [...$headers, ...($request->precondition()->headers ?? [])];
+        }
 
         // One key per send(), kept by every retry of it: the request below is
         // built once and the retry middleware resends this same object.
@@ -288,6 +346,42 @@ class Connector
     }
 
     /**
+     * Sends a request the connector didn't build from a Request, such as a
+     * next page or an operation monitor, after checking it's still under the
+     * base URI, and throws for an error status.
+     */
+    private function checked(RequestInterface $psr): Response
+    {
+        if (! $this->baseUri->allows((string) $psr->getUri())) {
+            throw new UnsafeUriException("Refusing to follow the API outside the base URI: [{$this->redactor->uri((string) $psr->getUri())}].");
+        }
+
+        if (! $psr->hasHeader('Accept')) {
+            $psr = $psr->withHeader('Accept', 'application/json, application/problem+json');
+        }
+
+        if (! $psr->hasHeader('User-Agent')) {
+            $psr = $psr->withHeader('User-Agent', $this->userAgentString());
+        }
+
+        $response = $this->dispatch($psr);
+
+        if ($response->failed()) {
+            throw $this->exceptions->map($response, $this->redactor);
+        }
+
+        return $response;
+    }
+
+    /**
+     * A Location from a response, resolved against the request it answered.
+     */
+    private function follow(Response $response, string $location): string
+    {
+        return Uri::parse($location, Uri::parse((string) $response->request()->getUri()))?->toString() ?? $location;
+    }
+
+    /**
      * @throws TransportException when no response came back
      */
     private function dispatch(RequestInterface $psr): Response
@@ -306,11 +400,17 @@ class Connector
         $middleware = [
             new Retry($this->retry, $this->clock, $this->sleeper),
             ...($this->throttle === null ? [] : [$this->throttle]),
+            ...($this->deprecations === null ? [] : [$this->deprecations]),
             ...$this->middleware,
         ];
 
         if ($this->auth !== null) {
             $middleware[] = new Authenticate($this->auth);
+        }
+
+        // Last, so it sees the credentials it has to key entries on.
+        if ($this->cache !== null) {
+            $middleware[] = $this->cache;
         }
 
         return new Pipeline($this->http, $middleware);

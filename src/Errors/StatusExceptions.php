@@ -24,6 +24,7 @@ final readonly class StatusExceptions implements ExceptionMapper
             410 => GoneException::class,
             412 => PreconditionFailedException::class,
             422 => UnprocessableContentException::class,
+            428 => PreconditionRequiredException::class,
             429 => TooManyRequestsException::class,
             default => $response->status() >= 500 ? ServerException::class : ClientException::class,
         };

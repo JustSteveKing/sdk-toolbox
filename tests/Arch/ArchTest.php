@@ -51,6 +51,7 @@ arch('values are immutable')
         'JustSteveKing\SdkToolbox\Http\Links',
         'JustSteveKing\SdkToolbox\Http\JsonPath',
         'JustSteveKing\SdkToolbox\Http\Query',
+        'JustSteveKing\SdkToolbox\Http\HttpDate',
         'JustSteveKing\SdkToolbox\Auth\Challenges',
         'JustSteveKing\SdkToolbox\Auth\OAuth\InMemoryTokenStore',
         'JustSteveKing\SdkToolbox\Auth\OAuth\BearerFromProvider',

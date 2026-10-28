@@ -34,7 +34,6 @@
         "nyholm/psr7": "^1.8",
         "pestphp/pest": "^4.1",
         "phpstan/phpstan": "^2.1",
-        "psr/simple-cache": "^3.0",
         "symfony/http-client": "^8.0"
     },
     "suggest": {

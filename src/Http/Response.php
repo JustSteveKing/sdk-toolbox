@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace JustSteveKing\SdkToolbox\Http;
 
+use DateTimeImmutable;
 use JsonException;
+use JustSteveKing\SdkToolbox\Deprecation\DeprecationNotice;
 use JustSteveKing\SdkToolbox\Errors\HydrationException;
 use JustSteveKing\SdkToolbox\Errors\InvalidRequestException;
 use JustSteveKing\SdkToolbox\Errors\InvalidResponseException;
@@ -151,6 +153,42 @@ final readonly class Response
     public function problem(): ?ProblemDetails
     {
         return ProblemDetails::fromResponse($this);
+    }
+
+    /**
+     * The entity tag, for If-Match on a later update, or null when there's
+     * none or it won't parse.
+     */
+    public function etag(): ?EntityTag
+    {
+        $etag = $this->header('ETag');
+
+        return $etag === null ? null : EntityTag::parse($etag);
+    }
+
+    public function lastModified(): ?DateTimeImmutable
+    {
+        $value = $this->header('Last-Modified');
+
+        return $value === null ? null : HttpDate::parse($value);
+    }
+
+    /**
+     * The preferences the server says it honoured (RFC 7240 section 3).
+     *
+     * @return array<string, string|null>
+     */
+    public function preferenceApplied(): array
+    {
+        return Preferences::applied($this->header('Preference-Applied') ?? '');
+    }
+
+    /**
+     * What the response said about deprecation or sunset, if anything.
+     */
+    public function deprecation(): ?DeprecationNotice
+    {
+        return DeprecationNotice::from($this->request, $this->response);
     }
 
     /**
