@@ -4,6 +4,10 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 
 ## [Unreleased]
 
+## [0.0.3] - 2026-10-28
+
+One addition, for the APIs that don't use RFC 9457, which is most of them. Nothing that was already there changes.
+
 ### Added
 
 - `problems` on `StatusExceptions`: a function that reads an API's own error shape into a `ProblemDetails`, so every status exception carries the API's message and codes. The errors guide's example for such APIs used to drop the message for every status but 401.
@@ -44,6 +48,7 @@ The first release.
 - Testing tools: a fake client, fake time and recorded fixtures.
 - An agent skill for building SDKs with the toolbox.
 
-[Unreleased]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.2...HEAD
+[Unreleased]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.3...HEAD
+[0.0.3]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/JustSteveKing/sdk-toolbox/releases/tag/v0.0.1
