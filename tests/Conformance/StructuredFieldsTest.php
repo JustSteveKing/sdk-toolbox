@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use JustSteveKing\SdkToolbox\Http\ByteSequence;
 use JustSteveKing\SdkToolbox\Http\StructuredFields;
 
 /**
@@ -15,12 +16,12 @@ it('parses items with parameters', function (): void {
 });
 
 it('parses every bare item type', function (): void {
-    expect(StructuredFields::parseList('42, -1.5, "a \\"q\\"", tok/en, :aGk=:, ?1, ?0, @1659578233, %"f%c3%bc"'))->toBe([
+    expect(StructuredFields::parseList('42, -1.5, "a \\"q\\"", tok/en, :aGk=:, ?1, ?0, @1659578233, %"f%c3%bc"'))->toEqual([
         ['value' => 42, 'params' => []],
         ['value' => -1.5, 'params' => []],
         ['value' => 'a "q"', 'params' => []],
         ['value' => 'tok/en', 'params' => []],
-        ['value' => 'aGk=', 'params' => []],
+        ['value' => new ByteSequence('hi'), 'params' => []],
         ['value' => true, 'params' => []],
         ['value' => false, 'params' => []],
         ['value' => 1659578233, 'params' => []],
@@ -44,3 +45,16 @@ it('fails the whole field on any error (section 4.2)', function (string $field):
     'garbage after an item' => ['12abc'],
     'missing comma' => ['"a" "b"'],
 ]);
+
+it('parses dictionaries, as Content-Digest and Signature use them', function (): void {
+    expect(StructuredFields::parseDictionary('sha-256=:aGk=:, sig1=("@method" "@path");created=1618884473;keyid="k", flag'))->toEqual([
+        'sha-256' => ['value' => new ByteSequence('hi'), 'params' => []],
+        'sig1' => ['value' => [['value' => '@method', 'params' => []], ['value' => '@path', 'params' => []]], 'params' => ['created' => 1618884473, 'keyid' => 'k']],
+        'flag' => ['value' => true, 'params' => []],
+    ]);
+});
+
+it('serialises an inner list the way RFC 9421 signs it', function (): void {
+    expect(StructuredFields::serializeInnerList(['date', '@authority', 'content-type'], ['created' => 1618884473, 'keyid' => 'test-shared-secret']))
+        ->toBe('("date" "@authority" "content-type");created=1618884473;keyid="test-shared-secret"');
+});

@@ -55,6 +55,7 @@ function ping(array $query = [], array $headers = []): Request
 
 require_once __DIR__.'/OAuth/helpers.php';
 require_once __DIR__.'/Observability/helpers.php';
+require_once __DIR__.'/Integrity/helpers.php';
 
 /**
  * A DELETE to a path that returns the raw response.

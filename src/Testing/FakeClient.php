@@ -101,6 +101,56 @@ final class FakeClient implements ClientInterface
         );
     }
 
+    /**
+     * A request with this method and path was sent.
+     */
+    public function assertSentTo(string $method, string $path): void
+    {
+        self::assert(
+            array_any($this->sent, static fn (RequestInterface $r): bool => strcasecmp($r->getMethod(), $method) === 0 && $r->getUri()->getPath() === $path),
+            "No {$method} {$path} was sent.",
+        );
+    }
+
+    /**
+     * A request was sent whose JSON body contains everything given, at the
+     * same keys: a subset match, so unrelated fields don't matter.
+     *
+     * @param  array<array-key, mixed>  $subset
+     */
+    public function assertSentJson(array $subset): void
+    {
+        self::assert(
+            array_any($this->sent, static function (RequestInterface $r) use ($subset): bool {
+                $body = json_decode((string) $r->getBody(), true);
+                $r->getBody()->rewind();
+
+                return is_array($body) && self::contains($body, $subset);
+            }),
+            'No request was sent with that JSON in its body.',
+        );
+    }
+
+    /**
+     * Requests went out in this order, as `METHOD /path` strings; others
+     * may come between them.
+     *
+     * @param  list<string>  $expected
+     */
+    public function assertSentInOrder(array $expected): void
+    {
+        $sent = array_map(static fn (RequestInterface $r): string => "{$r->getMethod()} {$r->getUri()->getPath()}", $this->sent);
+        $position = 0;
+
+        foreach ($sent as $line) {
+            if ($line === ($expected[$position] ?? null)) {
+                $position++;
+            }
+        }
+
+        self::assert($position === count($expected), 'Requests weren\'t sent in the expected order. Sent: '.implode(', ', $sent));
+    }
+
     public function assertSentCount(int $count): void
     {
         self::assert(count($this->sent) === $count, sprintf('Expected %d requests, %d were sent.', $count, count($this->sent)));
@@ -117,6 +167,29 @@ final class FakeClient implements ClientInterface
     public function assertQueueEmpty(): void
     {
         self::assert($this->queue === [], sprintf('%d fake responses were never used.', count($this->queue)));
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $haystack
+     * @param  array<array-key, mixed>  $subset
+     */
+    private static function contains(array $haystack, array $subset): bool
+    {
+        foreach ($subset as $key => $value) {
+            if (! array_key_exists($key, $haystack)) {
+                return false;
+            }
+
+            $matches = is_array($value) && is_array($haystack[$key])
+                ? self::contains($haystack[$key], $value)
+                : $haystack[$key] === $value;
+
+            if (! $matches) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static function assert(bool $condition, string $message): void

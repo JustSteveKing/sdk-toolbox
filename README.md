@@ -27,6 +27,8 @@ fakes, under different rules:
   - RFC 9111 caching, RFC 9110 conditional requests, RFC 9745 Deprecation,
     RFC 8594 Sunset, RFC 7240 Prefer
   - PSR-3 logging, PSR-14 events, W3C Trace Context, OpenTelemetry spans
+  - RFC 9530 Content-Digest, RFC 9421 HTTP Message Signatures, Standard
+    Webhooks
 
 Requires PHP 8.5. It's at 0.x and not on Packagist yet.
 
@@ -443,6 +445,74 @@ $http->assertSent(fn (RequestInterface $r) => $r->getUri()->getPath() === '/v2/p
 
 When the queue runs out, the next request throws `StrayRequestException`,
 which a connector never mistakes for a network error.
+
+## Integrity and signatures
+
+`new Digests` adds `Content-Digest` (RFC 9530, sha-256 or sha-512) to
+every request with a body, and throws `DigestMismatchException` when a
+response's content doesn't match its own. Only the Active algorithms are
+supported. A response a client may have decompressed isn't checked.
+
+`new SignRequests($key, ['@method', '@authority', '@path'])` signs
+requests with RFC 9421 HTTP Message Signatures:
+
+- **Keys:** `SigningKey::hmac()` or `SigningKey::ed25519()`, the latter
+  taking a seed or a PEM.
+- **Coverage:** it covers `content-digest` too when `Digests` runs first,
+  so the body is signed.
+- **Correctness:** the tests reproduce the RFC's Appendix B signatures
+  byte for byte.
+
+`MessageVerifier` checks signatures against the requirements RFC 9421
+leaves to the application:
+
+- which components must be covered;
+- a maximum age, with `expires` enforced;
+- an optional `tag`;
+- a key lookup by `keyid`, so an unknown key fails.
+
+A stated `alg` must match the key. Component parameters (`;sf`, `;key`,
+`;req`...) are refused rather than checked against the wrong base.
+
+## Webhooks
+
+Every verifier takes the PSR-7 request as it arrived and throws
+`InvalidSignatureException`:
+
+```php
+new StandardWebhooks('whsec_...')        // v1 HMAC, or 'whpk_...' for v1a Ed25519
+new HmacWebhook($secret, header: 'X-Hub-Signature-256', prefix: 'sha256=')   // GitHub and similar
+new SignedWebhook($messageVerifier)      // RFC 9421, requiring content-digest
+```
+
+- **`StandardWebhooks`:**
+  - checks the timestamp against a tolerance;
+  - accepts any one of several signatures, for key rotation;
+  - `check()` returns the `webhook-id` to deduplicate on;
+  - `StandardWebhooks::sign()` makes signatures for testing your own
+    handlers.
+- **Test vectors:** both verifiers are tested against the vectors their
+  specs publish (the Standard Webhooks PHP library's, and GitHub's docs).
+
+## Recorded fixtures
+
+```php
+$http = new Recorder(__DIR__.'/fixtures', 'projects/list', RecordMode::fromEnvironment());
+```
+
+- **Replay** is the default. Run with `SDK_FIXTURES=record` to hit the
+  real API and write the fixture, or `missing` to record only what isn't
+  there yet.
+- **Credentials are masked before writing,** so fixtures are safe to
+  commit: sensitive headers and query parameters, plus `access_token`,
+  `client_secret` and other secret-looking keys in JSON and form bodies.
+- **Fixture names can't leave the directory.**
+- **Replay is strict:** requests must arrive in the recorded order with
+  the recorded method and path, or `FixtureMismatchException` says what
+  differed.
+
+`FakeClient` also has `assertSentTo()`, `assertSentJson()` (a subset
+match) and `assertSentInOrder()`.
 
 ## Development
 

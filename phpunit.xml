@@ -21,6 +21,7 @@
             <directory>tests/Feature</directory>
             <directory>tests/OAuth</directory>
             <directory>tests/Observability</directory>
+            <directory>tests/Integrity</directory>
         </testsuite>
     </testsuites>
     <source>
