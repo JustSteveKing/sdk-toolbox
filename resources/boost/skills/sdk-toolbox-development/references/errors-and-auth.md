@@ -63,6 +63,7 @@ Pass `scopeSeparator: ','` when the server lists scopes with commas, and `authen
 | `new Auth\OAuth\AuthorizationCode($oauth, $redirectUri)` | for a user: `start()`, keep the `AuthorizationRequest` in the session, then `exchange($started, $code, $state)` |
 | `new Auth\OAuth\RefreshingToken($oauth, "user:{$id}", $store, $lock)` | after the exchange: keeps that user's token fresh; add `rotating: true` when the server rotates refresh tokens and omits a spent one |
 | `new Auth\OAuth\DeviceAuthorization($oauth)` | CLIs: `start()`, show the code, `poll($code)` |
+| `(new Auth\OAuth\ClientRegistration($endpoint))->register(new Auth\OAuth\ClientMetadata([...]))` | registering a client at runtime (RFC 7591); `->oauthClient($tokenEndpoint, ...)` on the result |
 
 - **Storage:** with more than one process, use `Auth\OAuth\Psr16TokenStore` and a `RefreshLock` adapted from the framework's lock.
 - **Rejected tokens:** on a 401, OAuth authenticators renew the token and retry once. Don't add that yourself.

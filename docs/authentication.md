@@ -107,6 +107,26 @@ Polling follows RFC 8628 §3.5:
 - it doubles the wait after a connection failure;
 - it stops on a denial or when the code expires.
 
+### Registering a client at runtime
+
+Software that can't be registered by hand, such as one client per installation, an agent or a multi-tenant integration, can register itself (RFC 7591):
+
+```php
+$client = (new ClientRegistration('https://auth.acme.test/register'))->register(new ClientMetadata(
+    redirectUris: ['https://app.test/callback'],
+    clientName: 'My App',
+    grantTypes: ['authorization_code', 'refresh_token'],
+));
+
+$oauth = $client->oauthClient('https://auth.acme.test/oauth/token', 'https://auth.acme.test/oauth/authorize');
+```
+
+- **The metadata** follows RFC 7591 §2, including its defaults: `authorization_code` as the only grant, and `client_secret_basic` to authenticate. Use `tokenEndpointAuthMethod: 'none'` for a public client, and `extra:` for anything else the server takes.
+- **An initial access token,** for a server that wants one, is the second argument to `register()`, sent as a Bearer token.
+- **What comes back** is what the server registered, which can differ from what you asked for. `oauthClient()` authenticates the way it was registered to: Basic, the body, or nothing for a public client. A method the toolbox can't use, such as `private_key_jwt`, throws.
+- **The secret,** and the registration access token if the server issues one (RFC 7592), are credentials: `clientSecret()` and `registrationAccessToken()` return them, and they're kept out of dumps. A `client_secret_expires_at` of 0 means it never expires, and reads as null.
+- **A refusal** (§3.2.2, such as `invalid_redirect_uri`) throws `OAuthException`.
+
 ## When the API rejects a token
 
 If an OAuth authenticator gets a 401, it renews the credentials and sends the request once more (RFC 6750 §3.1).
