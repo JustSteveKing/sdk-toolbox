@@ -32,6 +32,31 @@ fakes, under different rules:
 
 Requires PHP 8.5. It's at 0.x and not on Packagist yet.
 
+## Install
+
+```bash
+composer require juststeveking/sdk-toolbox
+```
+
+You also need a PSR-18 client and PSR-17 factories, which most
+applications already have. If not, `symfony/http-client` and
+`nyholm/psr7` will do. Optional extras:
+
+- `cuyz/valinor` for typed results;
+- `open-telemetry/api` for spans.
+
+## Contents
+
+- [An SDK in four classes](#an-sdk-in-four-classes)
+- [Errors](#errors) and [Authentication](#authentication)
+- [Typed results](#typed-results) and [Pagination](#pagination)
+- [Retries](#retries), [Rate limits](#rate-limits) and [HTTP caching](#http-caching)
+- [Conditional requests](#conditional-requests), [Deprecation and Sunset](#deprecation-and-sunset), [Preferences and long-running operations](#preferences-and-long-running-operations)
+- [Logging, events and tracing](#logging-events-and-tracing) and [Middleware](#middleware)
+- [Testing](#testing) and [Recorded fixtures](#recorded-fixtures)
+- [Integrity and signatures](#integrity-and-signatures) and [Webhooks](#webhooks)
+- [Security](#security), [Compared with Saloon](#compared-with-saloon) and [Porting an existing SDK](#porting-an-existing-sdk)
+
 ## An SDK in four classes
 
 ```php
@@ -423,11 +448,11 @@ The order is:
 7. instrumentation and tracing, per attempt
 8. the HTTP client
 
-The cache comes after authentication so it can key entries on
-credentials. So every retry is throttled,
-passes through your middleware and is authenticated afresh. Nothing before
-authentication, a logger included, sees the credentials. The client can be any PSR-18 client, an HTTPlug
-`PluginClient` included.
+So every retry is throttled, passes through your middleware and is
+authenticated afresh. Nothing before authentication, a logger included,
+sees the credentials, and the cache comes after authentication so it can
+key entries on them. The client underneath can be any PSR-18 client, an
+HTTPlug `PluginClient` included.
 
 ## Testing
 
@@ -445,6 +470,26 @@ $http->assertSent(fn (RequestInterface $r) => $r->getUri()->getPath() === '/v2/p
 
 When the queue runs out, the next request throws `StrayRequestException`,
 which a connector never mistakes for a network error.
+
+## Recorded fixtures
+
+```php
+$http = new Recorder(__DIR__.'/fixtures', 'projects/list', RecordMode::fromEnvironment());
+```
+
+- **Replay** is the default. Run with `SDK_FIXTURES=record` to hit the
+  real API and write the fixture, or `missing` to record only what isn't
+  there yet.
+- **Credentials are masked before writing,** so fixtures are safe to
+  commit: sensitive headers and query parameters, plus `access_token`,
+  `client_secret` and other secret-looking keys in JSON and form bodies.
+- **Fixture names can't leave the directory.**
+- **Replay is strict:** requests must arrive in the recorded order with
+  the recorded method and path, or `FixtureMismatchException` says what
+  differed.
+
+`FakeClient` also has `assertSentTo()`, `assertSentJson()` (a subset
+match) and `assertSentInOrder()`.
 
 ## Integrity and signatures
 
@@ -494,30 +539,88 @@ new SignedWebhook($messageVerifier)      // RFC 9421, requiring content-digest
 - **Test vectors:** both verifiers are tested against the vectors their
   specs publish (the Standard Webhooks PHP library's, and GitHub's docs).
 
-## Recorded fixtures
+## Security
 
-```php
-$http = new Recorder(__DIR__.'/fixtures', 'projects/list', RecordMode::fromEnvironment());
-```
+The defaults assume an SDK will be used carelessly by someone, eventually.
 
-- **Replay** is the default. Run with `SDK_FIXTURES=record` to hit the
-  real API and write the fixture, or `missing` to record only what isn't
-  there yet.
-- **Credentials are masked before writing,** so fixtures are safe to
-  commit: sensitive headers and query parameters, plus `access_token`,
-  `client_secret` and other secret-looking keys in JSON and form bodies.
-- **Fixture names can't leave the directory.**
-- **Replay is strict:** requests must arrive in the recorded order with
-  the recorded method and path, or `FixtureMismatchException` says what
-  differed.
+- **Requests can't leave the base URI.**
+  - Paths are appended to it.
+  - Absolute URLs, `//host` and `..` segments (encoded ones too) are
+    refused.
+  - Next-page links, operation monitors and 303 targets from the API are
+    held to the same rule.
+- **No credentials over plain HTTP** unless the connector is told
+  `insecure: true`.
+- **Secrets are redacted everywhere:**
+  - exceptions hold a redacted snapshot of the request, never the request;
+  - HTTP client error messages have query credentials masked;
+  - authenticators and keys hide their secrets from `var_dump()` and
+    `print_r()`;
+  - log lines, events and OpenTelemetry's `url.full` are redacted;
+  - recorded fixtures are masked before they're written.
+- **Nothing is unserialized.** The HTTP cache, token store and
+  rate-limit store keep plain arrays, and ignore anything else they find.
+- **Fixture names can't reach outside their directory.**
+- **Webhook and signature checks compare in constant time,** and enforce
+  freshness.
 
-`FakeClient` also has `assertSentTo()`, `assertSentJson()` (a subset
-match) and `assertSentInOrder()`.
+Those cover the three classes of hole Saloon fixed in v4: an
+`unserialize` in token storage, SSRF through absolute endpoint URLs, and
+path traversal in fixture names.
+
+## Compared with Saloon
+
+Saloon is good, and much of this package's shape is borrowed from it:
+request objects, a connector, and fakes in tests. The differences are the
+point of this package:
+
+| | Saloon 4 | SDK Toolbox |
+|---|---|---|
+| HTTP client | Guzzle, required | any PSR-18 client |
+| Results | `dto(): mixed` | `send(Request<T>): T`, checked by PHPStan |
+| Static analysis | PHPStan 7 with a baseline | PHPStan max, no baseline |
+| Retries | every 4xx and 5xx, no method check | RFC 9110's idempotency rule, `Retry-After`, jitter, a deadline, Idempotency-Key |
+| Rate limits | plugin, `Retry-After` only | IETF `RateLimit` and `X-RateLimit-*` read; optional throttle |
+| Errors | per-status classes | per-status classes plus RFC 9457 problems, mapped by type |
+| Caching | plugin, fixed TTL | RFC 9111: validators, 304s, `Vary`, keyed on credentials |
+| Pagination | plugin, body only | `Link` headers and body strategies, bounded memory |
+| Configuration | traits booted by name, mutable properties, static globals | constructor arguments, immutable `with*()` |
+| Async and pools | yes, on Guzzle promises | not yet |
+
+Saloon has async requests, pools and a Laravel plugin with a facade and
+`make:` commands; this doesn't have them yet. If you need concurrent
+requests today, Saloon is the better choice.
+
+## Porting an existing SDK
+
+`einvoicing/sdk`, a PSR-18 SDK of around 1,400 lines, was ported onto the
+toolbox as its proof.
+
+- **Public API:** unchanged. The client, resources, response objects and
+  exception classes are the same.
+- **Tests:** 26 of its 28 tests passed with no change but one line in the
+  test helper. The other two tested internals (private properties and the
+  exact User-Agent).
+- **What it gained:** retries, plain-HTTP refusal, redaction and logging.
+
+What it took:
+
+- **`Client` extends `Connector`.** Its constructor passes the base URI, a
+  `BearerToken`, the SDK's User-Agent and an `ExceptionMapper`.
+- **Each endpoint becomes a `Request<T>`,** and each resource method shrinks
+  to `return $this->client->send(new FindParticipant($id));`.
+- **Existing exception classes extend `HttpException`.** Override
+  `describe()` to keep their messages, and use property hooks to keep
+  their public properties.
+- **Test helpers pass `retry: RetryPolicy::none()`** wherever a test queues
+  exactly one answer.
+
+Request classes are the cost: twelve endpoints came to about 470 lines.
 
 ## Development
 
 ```bash
-composer test      # Pest: unit, RFC conformance, feature and arch suites
+composer test      # Pest: arch, RFC conformance, unit, memory and feature suites
 composer analyse   # PHPStan max, including type assertions on the fixture SDK
 composer lint      # Pint
 ```

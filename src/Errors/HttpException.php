@@ -16,7 +16,9 @@ use RuntimeException;
  * Holds the response, the problem details if the body had them, and a
  * redacted snapshot of the request, never the request itself, which
  * carries its credentials. The constructor is final so that an SDK's own
- * subclasses, mapped from problem types, can always be built the same way.
+ * subclasses, mapped from problem types, can always be built the same way;
+ * they change their message by overriding describe(), and add accessors
+ * with property hooks or methods over `$problem`.
  */
 class HttpException extends RuntimeException implements SdkException
 {
@@ -42,10 +44,14 @@ class HttpException extends RuntimeException implements SdkException
         $this->response = $response->psr();
         $this->retryAfter = $response->retryAfter();
 
-        parent::__construct(self::describe($response, $problem), $this->status);
+        parent::__construct($this->describe($response, $problem), $this->status);
     }
 
-    private static function describe(Response $response, ?ProblemDetails $problem): string
+    /**
+     * The exception's message. Override it to keep an SDK's own wording;
+     * the constructor is final, so this is the place to do it.
+     */
+    protected function describe(Response $response, ?ProblemDetails $problem): string
     {
         $request = $response->request();
         $reason = $response->psr()->getReasonPhrase();

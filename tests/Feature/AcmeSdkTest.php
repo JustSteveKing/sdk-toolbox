@@ -173,3 +173,16 @@ it('can assert on what was sent', function (): void {
 it('keeps the token out of a dump of the SDK', function (): void {
     expect(print_r(new Acme('very-secret-token', new FakeClient), true))->not->toContain('very-secret-token');
 });
+
+it('lets an SDK exception word its own message', function (): void {
+    $exception = new class(new JustSteveKing\SdkToolbox\Http\Response(FakeResponse::problem(402, title: 'Out of credit.'), new Nyholm\Psr7\Request('GET', 'https://api.acme.test/v2/x')), JustSteveKing\SdkToolbox\Errors\ProblemDetails::fromArray(['title' => 'Out of credit.']), new JustSteveKing\SdkToolbox\Redaction\Redactor) extends JustSteveKing\SdkToolbox\Errors\ClientException
+    {
+        protected function describe(JustSteveKing\SdkToolbox\Http\Response $response, ?JustSteveKing\SdkToolbox\Errors\ProblemDetails $problem): string
+        {
+            return "Acme: {$problem?->title}";
+        }
+    };
+
+    expect($exception->getMessage())->toBe('Acme: Out of credit.')
+        ->and($exception->status)->toBe(402);
+});
