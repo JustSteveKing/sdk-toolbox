@@ -15,7 +15,21 @@ use Psr\Clock\ClockInterface;
  * that token is used and nothing is fetched. A token the API rejected is
  * never handed out again, even if its expiry says it's fine.
  *
- * @internal
+ * ClientCredentials and RefreshingToken are built on it. For a grant the
+ * toolbox doesn't have, such as RFC 7523's JWT bearer grant or RFC 8693's
+ * token exchange, give it a `fetch` that gets a token your way, and pass
+ * it to ProvidedToken:
+ *
+ *     auth: new ProvidedToken(new TokenProvider(
+ *         key: 'acme:jwt-bearer',
+ *         store: $store,
+ *         lock: $lock,
+ *         clock: $oauth->clock,
+ *         fetch: fn (?AccessToken $current): AccessToken => $oauth->requestToken([
+ *             'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+ *             'assertion' => $assertions->make(),
+ *         ]),
+ *     )),
  */
 final readonly class TokenProvider
 {

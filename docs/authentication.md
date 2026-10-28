@@ -107,6 +107,25 @@ Polling follows RFC 8628 §3.5:
 - it doubles the wait after a connection failure;
 - it stops on a denial or when the code expires.
 
+### A grant the toolbox doesn't have
+
+`TokenProvider` is what `ClientCredentials` and `RefreshingToken` are built on: it stores the token, fetches a new one when it expires, once across processes, and never hands out one the API rejected. Give it a `fetch` for any other grant, such as RFC 7523's JWT bearer grant or RFC 8693's token exchange, and send what it hands out with `ProvidedToken`:
+
+```php
+auth: new ProvidedToken(new TokenProvider(
+    key: 'acme:jwt-bearer',
+    store: $store,
+    lock: $lock,
+    clock: $oauth->clock,
+    fetch: fn (?AccessToken $current): AccessToken => $oauth->requestToken([
+        'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        'assertion' => $assertions->make(),
+    ]),
+)),
+```
+
+`fetch` gets the token being replaced, if there is one, so a refresh-style grant can use it. A 401 renews the token and retries once, as with the built-in grants.
+
 ### Registering a client at runtime
 
 Software that can't be registered by hand, such as one client per installation, an agent or a multi-tenant integration, can register itself (RFC 7591):

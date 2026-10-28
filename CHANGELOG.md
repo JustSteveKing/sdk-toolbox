@@ -14,6 +14,10 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 - `scopeSeparator` on `OAuthClient`, for servers that list scopes with commas rather than RFC 6749's spaces. Every flow sends scopes that way and reads granted ones back the same way.
 - Dynamic Client Registration (RFC 7591): `ClientRegistration`, `ClientMetadata` and `RegisteredClient`, whose `oauthClient()` authenticates the way the server registered it.
 
+### Changed
+
+- `TokenProvider` is public, with a new `ProvidedToken` authenticator, so an SDK can run a grant the toolbox doesn't have (a JWT bearer grant, token exchange) and keep the storage, single-flight refresh and retry on rejection.
+
 ## [0.0.1] - 2026-10-28
 
 The first release.
