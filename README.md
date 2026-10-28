@@ -1,24 +1,33 @@
 # SDK Toolbox
 
-A PHP library for building API SDKs that behave well when the network doesn't.
+A PHP library for building API SDKs. You describe the API with a connector and each endpoint with a small request class. The toolbox handles the rest the way the HTTP standards say a client should:
 
-## Why this exists
+- retries;
+- errors;
+- pagination;
+- authentication;
+- testing.
 
-I've written a lot of SDKs: for Sevalla, Ollama, Lemon Squeezy, OpenLibrary, Envoyer and einvoicing.dev, among others. Every one of them needed the same handful of things, built again each time: retries, error handling, pagination, authentication, and some way to test it all without hitting the real API.
+It works with any PSR-18 HTTP client.
 
-Those are easy to get subtly wrong, and the mistakes don't show until production:
+## Install
 
-- a retry loop that repeats a POST and charges a card twice;
-- an exception message with the API key sitting in its URL, on its way to an error tracker;
-- pagination that quietly holds every page in memory.
+```bash
+composer require juststeveking/sdk-toolbox
+```
 
-My earlier shared foundations, `juststeveking/php-sdk` and `juststeveking/sdk-tools`, covered the plumbing. This one goes further, and the idea behind it is simple: most of the hard questions an API client faces were answered years ago, in RFCs. RFC 9110 says which requests are safe to retry, and the response's own `Retry-After` says how long to wait first. RFC 9457 gives an error a type you can match on, instead of a message you have to parse. A client that follows those answers behaves well without its author having to think about any of it, so the toolbox follows them, and your SDK gets that for free.
+It needs PHP 8.3 or newer, and a PSR-18 client with PSR-17 factories. Most applications already have those; if yours doesn't, `composer require symfony/http-client nyholm/psr7`. Two extras are optional:
 
-It's the client-side twin of [api-toolbox](https://github.com/JustSteveKing/api-toolbox), which makes a Laravel API send all of those headers properly. This makes a PHP client read them.
+- `cuyz/valinor`, for mapping responses onto your own classes;
+- `open-telemetry/api`, for tracing.
 
-## What it's like to use
+It's at 0.x and not on Packagist yet, so expect the odd change before 1.0.
 
-You describe the API once, with a connector:
+## Quick start
+
+### 1. Describe the API
+
+A connector says where the API is and how to authenticate:
 
 ```php
 use JustSteveKing\SdkToolbox\Auth\BearerToken;
@@ -39,7 +48,11 @@ final class Acme extends Connector
 }
 ```
 
-And each endpoint as a small request class, which says what to send and what comes back:
+Taking `$http` lets applications pass their own client, and lets your tests pass a fake.
+
+### 2. Describe an endpoint
+
+A request says what to send and what the response becomes. The `@implements` line is what makes `send()` return a `Project`, to PHPStan as well as at runtime:
 
 ```php
 use JustSteveKing\SdkToolbox\Http\Method;
@@ -63,83 +76,157 @@ final readonly class GetProject implements Request
 
     public function result(Response $response): Project
     {
-        return $response->map(Project::class);
+        return Project::fromArray($response->json());
     }
 }
 ```
 
-Then you send it, and get a `Project` back, which PHPStan knows about too:
+`Project` is your own class. A request that sends data implements `HasBody` as well, and returns a `new JsonBody([...])` (or a form, multipart or patch body) from `body()`.
+
+### 3. Send it
 
 ```php
-$project = (new Acme($token))->send(new GetProject('prj_1'));
+$acme = new Acme(getenv('ACME_TOKEN'));
+
+$project = $acme->send(new GetProject('prj_1'));
 ```
 
-That's the whole pattern. If you've used Saloon, it'll feel familiar, and that's deliberate.
+A 4xx or 5xx throws, so `result()` only ever sees a successful response.
 
-## What you don't have to write
+### 4. Test it
 
-The point of the toolbox is the code you no longer write, or get subtly wrong, in every SDK.
+```php
+use JustSteveKing\SdkToolbox\Testing\FakeClient;
+use JustSteveKing\SdkToolbox\Testing\FakeResponse;
 
-**Retries.** That GET gets retried if Acme answers 503, waiting as long as Acme asks. A POST that hits a 502 doesn't, because the first attempt may already have created something. When you do want to retry a POST, mark it idempotent, and it goes out with an Idempotency-Key that stays the same on every attempt.
+it('gets a project', function (): void {
+    $http = new FakeClient(FakeResponse::json(['id' => 'prj_1', 'name' => 'Website']));
 
-**Errors.** A 404 becomes a `NotFoundException`, not a generic HTTP error you have to inspect. If the API speaks RFC 9457, the problem it sent comes along with the exception, and you can map its problem types to your own SDK's exceptions in one line.
+    $project = (new Acme('test-token', $http))->send(new GetProject('prj_1'));
 
-**Secrets.** Your users' API keys stay out of exception messages, log lines, traces and recorded test fixtures. Requests can't wander off to another host, even when the API's own next-page link tells them to.
-
-**Lists.** Paginating a million records holds one page at a time, whether the API pages by `Link` header, cursor, offset or Stripe's `starting_after`.
-
-**OAuth.** Client credentials, authorisation code with PKCE, and the device flow for CLIs. Tokens refresh once, even when ten workers notice they've expired at the same moment.
-
-**Testing.** A fake HTTP client with proper assertions, a fake clock so retries don't make your tests slow, and a recorder that captures real API responses once, masks the secrets, and replays them from then on.
-
-There's more, from HTTP caching to webhook verification, and the [docs](docs/README.md) cover all of it.
-
-## What it won't do
-
-It doesn't pick an HTTP client for you. Bring the PSR-18 client your application already uses (Symfony's, Guzzle, whatever your framework has), or let it find one that's installed.
-
-It doesn't do async or concurrent requests yet. Saloon does, on top of Guzzle, so if you need a pool of parallel requests today, Saloon is the better choice. Here's how the two compare otherwise:
-
-| | Saloon 4 | SDK Toolbox |
-|---|---|---|
-| HTTP client | Guzzle, required | any PSR-18 client |
-| What `send()` returns | `mixed` | the request's own type, checked by PHPStan |
-| Retries | every 4xx and 5xx | only what RFC 9110 says is safe to repeat |
-| Errors | a class per status | a class per status, plus RFC 9457 problems |
-| Caching | a fixed lifetime | RFC 9111: ETags, 304s, `Vary` |
-| Async and pools | yes | not yet |
-
-## Getting started
-
-```bash
-composer require juststeveking/sdk-toolbox
+    expect($project->name)->toBe('Website');
+    $http->assertSentTo('GET', '/v2/projects/prj_1');
+});
 ```
 
-You'll need PHP 8.3 or newer, and a PSR-18 client with PSR-17 factories if your application doesn't already have them (`symfony/http-client` and `nyholm/psr7` will do). Two optional extras:
+[Getting started](docs/getting-started.md) goes further: resources that group requests, POST bodies and the result class, start to finish.
 
-- `cuyz/valinor`, for mapping responses onto your own classes;
-- `open-telemetry/api`, for tracing.
+## What it does, and where to read more
 
-From there, [Getting started](docs/getting-started.md) walks through building a complete SDK, test and all.
+### Requests and bodies
 
-It's at 0.x and not on Packagist yet, so expect the odd change before 1.0.
+- **Request extras:** a request implements `HasQuery`, `HasHeaders` or `HasBody` for what it needs.
+- **Bodies:** JSON, form, streamed multipart, JSON Merge Patch (with `MergePatch::diff($before, $after)`) and JSON Patch.
+- **Paths** are appended to the base URI and can't escape it, so a caller's input can't send a request, or its credentials, to another host.
 
-## The docs
+More in [Requests and bodies](docs/requests-and-bodies.md).
 
-- [Getting started](docs/getting-started.md): a complete SDK, start to finish
-- [Requests and bodies](docs/requests-and-bodies.md), [Errors](docs/errors.md) and [Authentication](docs/authentication.md)
-- [Results and pagination](docs/results-and-pagination.md) and [Reliability](docs/reliability.md): retries, idempotency and rate limits
-- [HTTP semantics](docs/http-semantics.md): caching, ETags, deprecation and long-running operations
-- [Observability](docs/observability.md), [Middleware](docs/middleware.md) and [Testing](docs/testing.md)
-- [Integrity and webhooks](docs/integrity-and-webhooks.md) and [Security](docs/security.md)
-- [Standards](docs/standards.md): every RFC and draft it follows, and how far
-- [Porting an existing SDK](docs/porting.md): what moving einvoicing.dev's SDK across took
+### Errors
 
-## If you build with an AI agent
+A 404 throws `NotFoundException`, a 422 `UnprocessableContentException`, and so on, each carrying the response and any RFC 9457 problem the API sent. Map the API's own problem types to your SDK's exceptions:
 
-The package ships a skill that teaches an agent to build SDKs the toolbox's way, in `resources/boost/skills/sdk-toolbox-development`. Laravel Boost picks it up on its own; anywhere else, copy that directory into your agent's skills directory (`.claude/skills/` for Claude Code). If you're working on the toolbox itself, [AGENTS.md](AGENTS.md) is for you.
+```php
+exceptions: new ProblemTypes(['https://api.acme.test/problems/out-of-credit' => OutOfCredit::class]),
+```
 
-## Working on it
+More in [Errors](docs/errors.md).
+
+### Authentication
+
+| Need | Use |
+|---|---|
+| A static credential | `BearerToken`, `BasicAuth`, `HeaderKey` or `QueryKey` |
+| OAuth 2.0, server to server | `ClientCredentials` |
+| OAuth 2.0, for a user | `AuthorizationCode` with PKCE, then `RefreshingToken` |
+| OAuth 2.0, for a CLI | the device flow |
+
+Credentials don't go over plain HTTP unless you say so. Tokens refresh once, even across processes.
+
+More in [Authentication](docs/authentication.md).
+
+### Typed results and pagination
+
+```php
+return $response->map(Member::class, at: 'data');   // with cuyz/valinor installed
+
+foreach ($acme->paginate(new ListMembers, new CursorPagination('meta.next_cursor')) as $member) {
+    // every member, one page in memory at a time
+}
+```
+
+Pagination follows `Link` headers, cursors, offsets, page numbers or Stripe's `starting_after`.
+
+More in [Results and pagination](docs/results-and-pagination.md).
+
+### Retries and rate limits
+
+Retries are on by default and only repeat what's safe:
+
+- a GET that hit a 503 is retried, for as long as `Retry-After` says;
+- a POST that may have landed isn't.
+
+Mark a POST `Idempotent` to send an Idempotency-Key and make it retryable. To wait for a rate limit to reset rather than collect 429s, give the connector a throttle:
+
+```php
+retry: RetryPolicy::standard()->withMaxAttempts(5),
+throttle: new Throttle(maxWait: 30.0),
+```
+
+More in [Reliability](docs/reliability.md).
+
+### Caching, ETags and long-running operations
+
+- **Caching:** pass `cache: $psr16Cache` for an RFC 9111 HTTP cache.
+- **Safe updates:** use `Precondition::ifMatch($etag)` so an update only applies if nobody changed the resource in between.
+- **Long-running operations:** `$acme->await($request)` follows a 202 until the work is done.
+- **Deprecation:** deprecated endpoints can be reported, or fail your test suite.
+
+More in [HTTP semantics](docs/http-semantics.md).
+
+### Logging and tracing
+
+Pass `logger:` (PSR-3), `events:` (PSR-14) or `tracing:` (W3C Trace Context or OpenTelemetry). Every log line and event is redacted, so no credential reaches them.
+
+More in [Observability](docs/observability.md) and [Middleware](docs/middleware.md).
+
+### Testing
+
+| Tool | Gives you |
+|---|---|
+| `FakeClient` | answers from a queue, with assertions on what was sent |
+| `FakeTime` | retries without real sleeps |
+| `Recorder` | real API responses, recorded once with secrets masked, replayed from then on |
+
+More in [Testing](docs/testing.md).
+
+### Webhooks and signatures
+
+Verify incoming webhooks:
+
+- `new StandardWebhooks('whsec_...')`;
+- `new HmacWebhook($secret, header: 'X-Hub-Signature-256', prefix: 'sha256=')`, for GitHub-style signatures.
+
+Sign requests with RFC 9421 HTTP Message Signatures, and check bodies with Content-Digest.
+
+More in [Integrity and webhooks](docs/integrity-and-webhooks.md).
+
+## More
+
+- [Security](docs/security.md): what the defaults protect against
+- [Standards](docs/standards.md): every RFC, draft and PSR it follows, and how far
+- [Porting an existing SDK](docs/porting.md): moving an SDK you already have onto the toolbox
+- [Compared with Saloon](docs/compared-with-saloon.md): the differences, and when Saloon is the better choice
+
+### With an AI agent
+
+The package ships a skill that teaches an agent to build SDKs this way, in `resources/boost/skills/sdk-toolbox-development`.
+
+- **Laravel Boost** picks it up on its own.
+- **Anywhere else,** copy that directory into your agent's skills directory (`.claude/skills/` for Claude Code).
+
+Working on the toolbox itself? Read [AGENTS.md](AGENTS.md).
+
+### Working on it
 
 ```bash
 composer test      # Pest

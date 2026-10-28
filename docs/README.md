@@ -18,5 +18,6 @@ Start with [Getting started](getting-started.md). It builds a small SDK from not
 | [Security](security.md) | What the defaults protect against, and how |
 | [Standards](standards.md) | Every RFC, draft and PSR the toolbox implements, and how far |
 | [Porting an existing SDK](porting.md) | Moving an SDK you already have onto the toolbox |
+| [Compared with Saloon](compared-with-saloon.md) | Where the two differ, and when Saloon is the better choice |
 
 Everything here is for version 0.x. Until 1.0, a minor release can change a public API, and the changelog will say so.
