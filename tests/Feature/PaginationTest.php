@@ -7,6 +7,7 @@ use JustSteveKing\SdkToolbox\Errors\PaginationException;
 use JustSteveKing\SdkToolbox\Errors\UnsafeUriException;
 use JustSteveKing\SdkToolbox\Pagination\CursorPagination;
 use JustSteveKing\SdkToolbox\Pagination\LinkPagination;
+use JustSteveKing\SdkToolbox\Pagination\NextUrlPagination;
 use JustSteveKing\SdkToolbox\Pagination\OffsetPagination;
 use JustSteveKing\SdkToolbox\Pagination\PagePagination;
 use JustSteveKing\SdkToolbox\Pagination\StartingAfterPagination;
@@ -56,6 +57,43 @@ it('refuses a next link that leaves the base URI', function (): void {
     expect(fn () => (new Acme('t', $http))->paginate(new ListMembers, new LinkPagination)->all())->toThrow(UnsafeUriException::class);
     $http->assertSentCount(1);
 });
+
+it('follows a next URL in the body, absolute or relative', function (): void {
+    $http = new FakeClient(
+        FakeResponse::json(membersPage(['a'], ['next' => 'https://api.acme.test/v2/members?page=2'])),
+        FakeResponse::json(membersPage(['b'], ['next' => '?page=3'])),
+        FakeResponse::json(membersPage(['c'], ['next' => null])),
+    );
+
+    $ids = array_map(fn (Member $m): string => $m->id, (new Acme('t', $http))->paginate(new ListMembers, new NextUrlPagination)->all());
+
+    expect($ids)->toBe(['a', 'b', 'c'])
+        ->and(queries($http->sent()))->toBe(['', 'page=2', 'page=3']);
+});
+
+it('reads the next URL from a nested path', function (): void {
+    $http = new FakeClient(
+        FakeResponse::json(membersPage(['a'], ['meta' => ['pagination' => ['next' => '/v2/members?page=2']]])),
+        FakeResponse::json(membersPage(['b'], ['meta' => ['pagination' => ['next' => '']]])),
+    );
+
+    (new Acme('t', $http))->paginate(new ListMembers, new NextUrlPagination('meta.pagination.next'))->all();
+
+    expect(queries($http->sent()))->toBe(['', 'page=2']);
+});
+
+it('refuses a next URL in the body that leaves the base URI', function (): void {
+    $http = new FakeClient(FakeResponse::json(membersPage(['a'], ['next' => 'https://evil.example/steal'])));
+
+    expect(fn () => (new Acme('t', $http))->paginate(new ListMembers, new NextUrlPagination)->all())->toThrow(UnsafeUriException::class);
+    $http->assertSentCount(1);
+});
+
+it('refuses a next value that is not a URL', function (mixed $next): void {
+    $http = new FakeClient(FakeResponse::json(membersPage(['a'], ['next' => $next])));
+
+    expect(fn () => (new Acme('t', $http))->paginate(new ListMembers, new NextUrlPagination)->all())->toThrow(PaginationException::class);
+})->with(['a number' => 2, 'a space' => 'page 2', 'an object' => [['url' => 'x']]]);
 
 it('sends a body cursor back, keeping the rest of the query', function (): void {
     $http = new FakeClient(

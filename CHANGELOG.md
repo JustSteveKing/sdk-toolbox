@@ -4,6 +4,10 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 
 ## [Unreleased]
 
+### Added
+
+- `NextUrlPagination`, for APIs that put the next page's URL in the body. A relative URL resolves against the request, and one outside the base URI is refused like a `Link` header's.
+
 ## [0.0.1] - 2026-10-28
 
 The first release.

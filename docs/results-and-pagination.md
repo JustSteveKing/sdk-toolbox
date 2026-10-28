@@ -78,6 +78,7 @@ PHPStan knows that's a `Paginator<Member>`, so `$member` is a `Member`.
 | Strategy | For an API that... |
 |---|---|
 | `new LinkPagination` | sends `Link: <...>; rel="next"` (RFC 8288), as GitHub does |
+| `new NextUrlPagination('meta.pagination.next')` | puts the next page's URL in the body, as Django REST Framework, Ghost and Buttondown do; relative URLs resolve against the request |
 | `new CursorPagination('meta.next_cursor', parameter: 'cursor')` | puts a cursor in the body and wants it back as a query parameter |
 | `new StartingAfterPagination` | says `has_more` and pages after the last item's ID, as Stripe does |
 | `new OffsetPagination(limit: 100)` | takes `offset` and `limit`; a short page is the last |
@@ -96,7 +97,7 @@ A strategy works on the PSR-7 request: `first()` shapes the first one and `next(
 
 - **One page in memory.** Iterating a million items holds one page at a time. A test walks 100,000 items over 2,000 pages and checks memory stays flat. `all()` collects everything if you really want it.
 - **Every page is a full request.** Retries, the throttle, your middleware and authentication all apply, and an error status on any page throws.
-- **Next links stay on the API.** A `next` URL outside the base URI throws `UnsafeUriException` before it's sent.
+- **Next links stay on the API.** A `next` URL outside the base URI, from a `Link` header or the body, throws `UnsafeUriException` before it's sent.
 - **No endless loops.** A page whose request repeats the one before throws `PaginationException`, and `maxPages` caps a longer cycle.
 - **Only what's needed.** `take(10)` fetches the pages that hold ten items and stops.
 
