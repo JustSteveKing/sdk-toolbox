@@ -7,6 +7,7 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 ### Added
 
 - `NextUrlPagination`, for APIs that put the next page's URL in the body. A relative URL resolves against the request, and one outside the base URI is refused like a `Link` header's.
+- `idempotencyHeader` on the connector, and `withIdempotencyHeader()` on `RetryPolicy`, for APIs that take the key under another name, such as `X-Idempotency-Key`. The connector keeps its retry policy in step.
 
 ## [0.0.1] - 2026-10-28
 

@@ -28,6 +28,11 @@ use Random\Randomizer;
  *   at all, because the first attempt may or may not have landed.
  * - **A keyed request** is retried on 409, which the Idempotency-Key draft
  *   uses for "the original is still in progress".
+ *
+ * "Carrying an Idempotency-Key" means the header `idempotencyHeader`
+ * names: the draft's `Idempotency-Key` unless the API uses another, such
+ * as `X-Idempotency-Key`. A connector sets it on its policy to match the
+ * header it sends.
  * - Nothing else is retried: not 400, 401, 404 or 422, which won't change
  *   on their own.
  *
@@ -53,6 +58,7 @@ final readonly class RetryPolicy implements RetryStrategy
      * @param  float  $jitter  how much of each wait is random: 1.0 is full jitter, 0.0 none
      * @param  float  $maxRetryAfter  the longest Retry-After worth waiting for
      * @param  float|null  $deadline  seconds the whole sequence may take, waits included
+     * @param  string  $idempotencyHeader  the header that marks a request as safe to repeat
      */
     public function __construct(
         public int $maxAttempts = 3,
@@ -62,6 +68,7 @@ final readonly class RetryPolicy implements RetryStrategy
         public float $maxRetryAfter = 60.0,
         public ?float $deadline = null,
         private Randomizer $random = new Randomizer,
+        public string $idempotencyHeader = 'Idempotency-Key',
     ) {
         if ($maxAttempts < 1) {
             throw new InvalidRequestException('A retry policy needs at least one attempt.');
@@ -80,6 +87,12 @@ final readonly class RetryPolicy implements RetryStrategy
     public static function none(): self
     {
         return new self(maxAttempts: 1);
+    }
+
+    #[NoDiscard]
+    public function withIdempotencyHeader(string $header): self
+    {
+        return $this->copy(idempotencyHeader: $header);
     }
 
     #[NoDiscard]
@@ -129,7 +142,7 @@ final readonly class RetryPolicy implements RetryStrategy
 
     private function retryable(RequestInterface $request, ?ResponseInterface $response, ?ClientExceptionInterface $error): bool
     {
-        $keyed = $request->hasHeader('Idempotency-Key');
+        $keyed = $request->hasHeader($this->idempotencyHeader);
         $repeatable = $keyed || (Method::tryFrom(strtoupper($request->getMethod()))?->isIdempotent() ?? false);
 
         if ($response === null) {
@@ -151,6 +164,7 @@ final readonly class RetryPolicy implements RetryStrategy
         ?float $maxDelay = null,
         ?float $deadline = null,
         bool $keepDeadline = true,
+        ?string $idempotencyHeader = null,
     ): self {
         return new self(
             maxAttempts: $maxAttempts ?? $this->maxAttempts,
@@ -160,6 +174,7 @@ final readonly class RetryPolicy implements RetryStrategy
             maxRetryAfter: $this->maxRetryAfter,
             deadline: $keepDeadline ? $this->deadline : $deadline,
             random: $this->random,
+            idempotencyHeader: $idempotencyHeader ?? $this->idempotencyHeader,
         );
     }
 

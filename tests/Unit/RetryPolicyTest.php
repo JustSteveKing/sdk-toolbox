@@ -26,6 +26,14 @@ function steady(): RetryPolicy
     return new RetryPolicy(jitter: 0.0);
 }
 
+it('recognises a key in the header the policy is told about', function (): void {
+    $policy = steady()->withIdempotencyHeader('X-Idempotency-Key');
+
+    expect(decide($policy, new Request('POST', '/', ['X-Idempotency-Key' => 'k']), 502))->toBe(0.5)
+        ->and(decide($policy, new Request('POST', '/', ['Idempotency-Key' => '"k"']), 502))->toBeNull()
+        ->and(decide(steady(), new Request('POST', '/', ['X-Idempotency-Key' => 'k']), 502))->toBeNull();
+});
+
 it('retries what the server did not process, for any method', function (int $status): void {
     expect(decide(steady(), new Request('POST', '/'), $status))->toBe(0.5);
 })->with([408, 425, 429, 503]);

@@ -27,6 +27,7 @@ Never write a retry loop around `send()`.
 When the API supports Idempotency-Key, implement `Requests\Idempotent` on its POST requests. Return a stable key from the caller (an order ID) or null for a random UUID. The same key is sent on every retry of one `send()`.
 
 - **Format:** pass `idempotencyKeys: Retries\IdempotencyKey::Bare` to the connector for APIs, Stripe among them, that want an unquoted key.
+- **Header:** pass `idempotencyHeader: 'X-Idempotency-Key'` for an API that names it differently; the connector keeps its `RetryPolicy` in step.
 - **Status:** experimental, since the draft is still changing.
 
 ## Rate limits

@@ -75,6 +75,7 @@ final readonly class CreateCharge implements HasBody, Idempotent, Request
 - **The key** is a random UUID unless the request returns its own. Tying it to something of yours, such as an order ID, means a retry after a crash reuses it too.
 - **Never reuse a key with a different payload** (the draft's §2.2).
 - **The default format** is the draft's quoted string, `Idempotency-Key: "8e03978e-..."`. Stripe and many others take a bare token: pass `idempotencyKeys: IdempotencyKey::Bare` to the connector.
+- **The header** is the draft's `Idempotency-Key` unless the API names another: Buttondown, for one, wants `X-Idempotency-Key`. Pass `idempotencyHeader: 'X-Idempotency-Key'` to the connector. It tells its `RetryPolicy` too, including one set later with `withRetry()`, so keyed requests are still retried; a custom `RetryStrategy` reads the request itself.
 
 Experimental: this is draft-ietf-httpapi-idempotency-key-header-08, and its section on retries is still open.
 

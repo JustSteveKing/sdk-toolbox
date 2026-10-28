@@ -105,6 +105,7 @@ class Connector
      * @param  RetryStrategy  $retry  RetryPolicy::standard() unless told otherwise; RetryPolicy::none() turns retries off
      * @param  Throttle|null  $throttle  wait for a spent rate limit to reset before sending, instead of collecting 429s
      * @param  IdempotencyKey  $idempotencyKeys  how Idempotent requests format their key
+     * @param  string  $idempotencyHeader  the header the key goes in: the draft's `Idempotency-Key` unless the API uses another
      * @param  Hydrator|null  $hydrator  maps responses to objects; ValinorHydrator when cuyz/valinor is installed
      * @param  CacheInterface|null  $cache  a PSR-16 store for an RFC 9111 private HTTP cache; no caching without one
      * @param  Deprecations|null  $deprecations  told about Deprecation and Sunset headers, once per endpoint
@@ -135,8 +136,16 @@ class Connector
         ?LoggerInterface $logger = null,
         ?EventDispatcherInterface $events = null,
         private readonly TraceContext|OpenTelemetrySpans|null $tracing = null,
+        private readonly string $idempotencyHeader = 'Idempotency-Key',
     ) {
         $this->baseUri = new BaseUri($baseUri);
+
+        // A field name is a token (RFC 9110 section 5.1).
+        if (preg_match('/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/', $idempotencyHeader) !== 1) {
+            throw new InvalidRequestException("[{$idempotencyHeader}] isn't a valid header name.");
+        }
+
+        $this->retry = $this->keyedBy($retry);
 
         // draft-ietf-httpapi-privacy: no credentials over an insecure channel
         // unless the caller has said, in so many words, that it's fine.
@@ -297,7 +306,7 @@ class Connector
         // One key per send(), kept by every retry of it: the request below is
         // built once and the retry middleware resends this same object.
         if ($request instanceof Idempotent) {
-            $headers['Idempotency-Key'] = $this->idempotencyKeys->header($request->idempotencyKey() ?? IdempotencyKey::generate());
+            $headers[$this->idempotencyHeader] = $this->idempotencyKeys->header($request->idempotencyKey() ?? IdempotencyKey::generate());
         }
 
         if ($request instanceof HasBody) {
@@ -326,9 +335,20 @@ class Connector
     public function withRetry(RetryStrategy $retry): static
     {
         $copy = clone $this;
-        $copy->retry = $retry;
+        $copy->retry = $this->keyedBy($retry);
 
         return $copy;
+    }
+
+    /**
+     * The connector's own retry policy has to recognise the header it sends
+     * keys in. A custom RetryStrategy is left alone; it reads the request.
+     */
+    private function keyedBy(RetryStrategy $retry): RetryStrategy
+    {
+        return $retry instanceof RetryPolicy && $retry->idempotencyHeader !== $this->idempotencyHeader
+            ? $retry->withIdempotencyHeader($this->idempotencyHeader)
+            : $retry;
     }
 
     #[NoDiscard]

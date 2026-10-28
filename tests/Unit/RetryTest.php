@@ -6,6 +6,7 @@ use JustSteveKing\SdkToolbox\Bodies\Body;
 use JustSteveKing\SdkToolbox\Bodies\JsonBody;
 use JustSteveKing\SdkToolbox\Bodies\RawBody;
 use JustSteveKing\SdkToolbox\Connector;
+use JustSteveKing\SdkToolbox\Errors\InvalidRequestException;
 use JustSteveKing\SdkToolbox\Errors\ServerException;
 use JustSteveKing\SdkToolbox\Errors\TooManyRequestsException;
 use JustSteveKing\SdkToolbox\Http\Method;
@@ -123,6 +124,32 @@ it('uses the request\'s own key, quoted or bare', function (): void {
 
     connector($http, new FakeTime, IdempotencyKey::Bare)->send(post(new JsonBody([]), idempotent: true, key: 'order-42'));
     expect($http->last()?->getHeaderLine('Idempotency-Key'))->toBe('order-42');
+});
+
+it('sends the key in the API\'s own header, and retries on it', function (): void {
+    $http = new FakeClient(FakeResponse::empty(502), FakeResponse::json(['id' => 'em_1'], 201));
+    $time = new FakeTime;
+    $connector = new Connector('https://api.example.com', http: $http, clock: $time, sleeper: $time, idempotencyKeys: IdempotencyKey::Bare, idempotencyHeader: 'X-Idempotency-Key');
+
+    $connector->send(post(new JsonBody(['subject' => 'Hi']), idempotent: true, key: 'email-7'));
+
+    expect(array_map(fn ($r): string => $r->getHeaderLine('X-Idempotency-Key'), $http->sent()))->toBe(['email-7', 'email-7'])
+        ->and($http->last()?->hasHeader('Idempotency-Key'))->toBeFalse();
+});
+
+it('keeps the header in step when the retry policy is swapped', function (): void {
+    $http = new FakeClient(FakeResponse::empty(502), FakeResponse::empty(201));
+    $time = new FakeTime;
+    $connector = (new Connector('https://api.example.com', http: $http, clock: $time, sleeper: $time, idempotencyHeader: 'X-Idempotency-Key'))
+        ->withRetry(RetryPolicy::standard()->withMaxAttempts(2));
+
+    $connector->send(post(new JsonBody([]), idempotent: true));
+
+    $http->assertSentCount(2);
+});
+
+it('refuses a header name that is not a token', function (): void {
+    expect(fn () => new Connector('https://api.example.com', idempotencyHeader: 'Idempotency Key'))->toThrow(InvalidRequestException::class);
 });
 
 it('does not retry an unkeyed POST after a 502', function (): void {
@@ -247,6 +274,6 @@ it('can be turned off', function (): void {
 });
 
 it('refuses a key that cannot go in a header', function (): void {
-    expect(fn () => IdempotencyKey::Bare->header('has space'))->toThrow(JustSteveKing\SdkToolbox\Errors\InvalidRequestException::class)
+    expect(fn () => IdempotencyKey::Bare->header('has space'))->toThrow(InvalidRequestException::class)
         ->and(IdempotencyKey::Quoted->header('a"b'))->toBe('"a\"b"');
 });
