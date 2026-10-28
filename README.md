@@ -6,6 +6,7 @@
 [![PHPStan](https://img.shields.io/badge/PHPStan-level%20max-brightgreen.svg)](phpstan.neon)
 [![Total downloads](https://img.shields.io/packagist/dt/juststeveking/sdk-toolbox.svg)](https://packagist.org/packages/juststeveking/sdk-toolbox)
 [![Licence](https://img.shields.io/packagist/l/juststeveking/sdk-toolbox.svg)](LICENSE.md)
+[![Sponsor](https://img.shields.io/github/sponsors/JustSteveKing?label=sponsor&logo=githubsponsors)](https://github.com/sponsors/JustSteveKing)
 
 A PHP library for building API SDKs. You describe the API with a connector and each endpoint with a small request class. The toolbox handles the rest the way the HTTP standards say a client should:
 
@@ -236,6 +237,8 @@ Working on the toolbox itself? Read [AGENTS.md](AGENTS.md).
 ### Contributing
 
 Issues and pull requests are welcome: [CONTRIBUTING.md](CONTRIBUTING.md) says how, and questions are best asked in [Discussions](https://github.com/JustSteveKing/sdk-toolbox/discussions). Report security problems privately, as [SECURITY.md](SECURITY.md) describes. Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md), and [CHANGELOG.md](CHANGELOG.md) lists what changed in each release.
+
+If the toolbox saves you time, you can [sponsor its development on GitHub](https://github.com/sponsors/JustSteveKing).
 
 ```bash
 composer test      # Pest
