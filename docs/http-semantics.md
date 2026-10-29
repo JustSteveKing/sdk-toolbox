@@ -102,4 +102,6 @@ $export = $acme->await(new StartExport($filters), timeout: 300.0, interval: 2.0)
 4. A 200 reporting `"status": "failed"` with an RFC 9457 problem in `error` throws `OperationFailedException`, carrying that problem and the monitor URI. A result that only has a status field is returned as it is.
 5. Otherwise the original request's `result()` reads it.
 
+`await()` follows the `303` itself, so give the connector a PSR-18 client that doesn't. Symfony's `Psr18Client` follows redirects by default: the monitor's `303` then never reaches `await()`, which gets the result as the monitor's answer instead, and a redirect to another host goes without the credentials. `new Psr18Client(HttpClient::create(['max_redirects' => 0]))` leaves redirects to the SDK. Guzzle's PSR-18 `sendRequest()` already does: it turns `allow_redirects` off for every request.
+
 A request the API answers straight away comes back as normal. Every monitor and result URI has to be under the base URI. At the timeout, `OperationTimeoutException` carries the monitor URI, so you can look again later: the operation may still finish.
