@@ -4,6 +4,10 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 
 ## [Unreleased]
 
+## [0.0.4] - 2026-10-29
+
+One fix, found by building an SDK against an API made with api-toolbox: `await()` and api-toolbox's status monitor now agree. Everything else behaves as it did.
+
 ### Fixed
 
 - `await()` stopped at the first poll of a monitor that answers 200 while the operation runs, and handed the status document to `result()` as if it were the result. api-toolbox's monitor answers that way, so the two toolboxes didn't agree; Pingback, which uses both, found it. A 200 with `Retry-After` now means "still running, ask again then", and polling carries on.
@@ -56,7 +60,8 @@ The first release.
 - Testing tools: a fake client, fake time and recorded fixtures.
 - An agent skill for building SDKs with the toolbox.
 
-[Unreleased]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.3...HEAD
+[Unreleased]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.4...HEAD
+[0.0.4]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/JustSteveKing/sdk-toolbox/releases/tag/v0.0.1
