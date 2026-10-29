@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use JustSteveKing\SdkToolbox\Connector;
+use JustSteveKing\SdkToolbox\Errors\OperationFailedException;
 use JustSteveKing\SdkToolbox\Errors\OperationTimeoutException;
 use JustSteveKing\SdkToolbox\Errors\ServerException;
 use JustSteveKing\SdkToolbox\Errors\UnsafeUriException;
@@ -71,4 +72,46 @@ it('throws when the operation fails', function (): void {
     $http = new FakeClient(FakeResponse::empty(202, ['Location' => '/v1/operations/op_1']), FakeResponse::problem(500, title: 'Export failed'), FakeResponse::problem(500, title: 'Export failed'), FakeResponse::problem(500, title: 'Export failed'));
 
     expect(fn () => awaiting($http, new FakeTime)->await(ping()))->toThrow(ServerException::class, 'Export failed');
+});
+
+it('keeps polling a monitor that answers 200 with Retry-After, as api-toolbox\'s does', function (): void {
+    $time = new FakeTime;
+    $http = new FakeClient(
+        FakeResponse::json(['id' => 'op_1', 'status' => 'pending'], 202, ['Location' => '/v1/operations/op_1', 'Retry-After' => '2']),
+        FakeResponse::json(['id' => 'op_1', 'status' => 'running'], 200, ['Retry-After' => '2']),
+        FakeResponse::json(['id' => 'op_1', 'status' => 'running'], 200, ['Retry-After' => '4']),
+        FakeResponse::empty(303, ['Location' => '/v1/exports/ex_1']),
+        FakeResponse::json(['id' => 'ex_1']),
+    );
+
+    $result = awaiting($http, $time)->await(ping());
+
+    expect($result->json())->toBe(['id' => 'ex_1'])
+        ->and($time->sleeps())->toBe([2.0, 2.0, 4.0]);
+    $http->assertSentTo('GET', '/v1/exports/ex_1');
+});
+
+it('throws OperationFailedException with the problem a monitor reports', function (): void {
+    $http = new FakeClient(
+        FakeResponse::json(['id' => 'op_1', 'status' => 'pending'], 202, ['Location' => '/v1/operations/op_1']),
+        FakeResponse::json(['id' => 'op_1', 'status' => 'failed', 'error' => ['type' => 'https://apiguide.dev/errors/internal-server-error', 'title' => 'Internal Server Error', 'status' => 500, 'detail' => 'The export could not be written.']]),
+    );
+
+    try {
+        awaiting($http, new FakeTime)->await(ping());
+        $this->fail('Expected OperationFailedException');
+    } catch (OperationFailedException $e) {
+        expect($e->monitor)->toBe('https://api.example.com/v1/operations/op_1')
+            ->and($e->problem->status)->toBe(500)
+            ->and($e->getMessage())->toContain('The export could not be written.');
+    }
+});
+
+it('returns a result that only happens to have a failed status', function (): void {
+    $http = new FakeClient(
+        FakeResponse::empty(202, ['Location' => '/v1/operations/op_1']),
+        FakeResponse::json(['id' => 'payment_1', 'status' => 'failed', 'error' => 'card_declined']),
+    );
+
+    expect(awaiting($http, new FakeTime)->await(ping())->json())->toBe(['id' => 'payment_1', 'status' => 'failed', 'error' => 'card_declined']);
 });

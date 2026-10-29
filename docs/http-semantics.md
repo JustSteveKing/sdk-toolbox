@@ -90,15 +90,16 @@ public function preferences(): Preferences
 
 `$response->preferenceApplied()` says which preferences the server honoured.
 
-For operations that take a while, `await()` handles the pattern Microsoft's and Azure's guidelines use, and api-toolbox emits:
+For operations that take a while, `await()` follows a `202 Accepted` to its result, the way api-toolbox's asynchronous operations answer:
 
 ```php
 $export = $acme->await(new StartExport($filters), timeout: 300.0, interval: 2.0);
 ```
 
-1. A `202 Accepted` with a `Location` is an operation in progress, and `Location` is its status monitor.
-2. The monitor is polled with GET, waiting for `Retry-After` (or `interval`) between polls, until it stops answering 202.
-3. A `303 See Other` from the monitor is followed to the result; a 200 is the result itself.
-4. The original request's `result()` reads it.
+1. A `202 Accepted` with a `Location` is an operation in progress, and `Location` is its status monitor (RFC 9110 section 15.3.3, RFC 7240 section 4.1).
+2. The monitor is polled with GET, waiting for `Retry-After` (or `interval`) between polls, while it says the operation is still going: a 202, or a 200 that carries `Retry-After`. A monitor's own GET succeeds, so many answer 200 with the status and use `Retry-After` to say when to ask again; api-toolbox's does.
+3. A `303 See Other` from the monitor is followed to the result; any other 200 is the result itself.
+4. A 200 reporting `"status": "failed"` with an RFC 9457 problem in `error` throws `OperationFailedException`, carrying that problem and the monitor URI. A result that only has a status field is returned as it is.
+5. Otherwise the original request's `result()` reads it.
 
 A request the API answers straight away comes back as normal. Every monitor and result URI has to be under the base URI. At the timeout, `OperationTimeoutException` carries the monitor URI, so you can look again later: the operation may still finish.

@@ -4,6 +4,14 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 
 ## [Unreleased]
 
+### Fixed
+
+- `await()` stopped at the first poll of a monitor that answers 200 while the operation runs, and handed the status document to `result()` as if it were the result. api-toolbox's monitor answers that way, so the two toolboxes didn't agree; Pingback, which uses both, found it. A 200 with `Retry-After` now means "still running, ask again then", and polling carries on.
+
+### Added
+
+- `OperationFailedException`, thrown by `await()` when the monitor reports `"status": "failed"` with an RFC 9457 problem in `error`, as api-toolbox's does. It carries the problem and the monitor URI. Before, the failure report went to `result()`.
+
 ## [0.0.3] - 2026-10-28
 
 One addition, for the APIs that don't use RFC 9457, which is most of them. Nothing that was already there changes.

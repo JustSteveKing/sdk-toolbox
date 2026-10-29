@@ -26,7 +26,7 @@ Pass `cache: $psr16Cache` to the connector for an RFC 9111 private cache.
 ## Prefer and long-running operations
 
 - **Preferences:** a request implements `Requests\HasPreferences` and returns `Http\Preferences::none()->respondAsync()`, `->returnMinimal()` or `->wait(10)`.
-- **202 operations:** `$sdk->await($request, timeout: 300.0)` follows 202 plus `Location` to a 303 or 200, then returns `result()`.
+- **202 operations:** `$sdk->await($request, timeout: 300.0)` follows 202 plus `Location`, polling while the monitor answers 202 or 200 with `Retry-After`, to a 303 or a final 200, then returns `result()`. A monitor reporting `"status": "failed"` with a problem in `error` throws `Errors\OperationFailedException`; send `Prefer: respond-async` with `HasPreferences` so the API answers 202.
 
 ## Logging, events, tracing
 

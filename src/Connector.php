@@ -13,7 +13,10 @@ use JustSteveKing\SdkToolbox\Deprecation\Deprecations;
 use JustSteveKing\SdkToolbox\Errors\ExceptionMapper;
 use JustSteveKing\SdkToolbox\Errors\HttpException;
 use JustSteveKing\SdkToolbox\Errors\InvalidRequestException;
+use JustSteveKing\SdkToolbox\Errors\InvalidResponseException;
+use JustSteveKing\SdkToolbox\Errors\OperationFailedException;
 use JustSteveKing\SdkToolbox\Errors\OperationTimeoutException;
+use JustSteveKing\SdkToolbox\Errors\ProblemDetails;
 use JustSteveKing\SdkToolbox\Errors\StatusExceptions;
 use JustSteveKing\SdkToolbox\Errors\TransportException;
 use JustSteveKing\SdkToolbox\Errors\UnsafeUriException;
@@ -206,15 +209,18 @@ class Connector
      *
      * A 202 Accepted with a `Location` is an operation in progress, and
      * `Location` is where its status lives. That monitor is polled with
-     * GET, waiting as long as `Retry-After` says (or `interval`), until it
-     * stops answering 202. A 303 See Other there points at the result,
-     * which is fetched; a 200 is the result itself. Either way, the
+     * GET, waiting as long as `Retry-After` says (or `interval`), for as long
+     * as it says the operation is still going: a 202, or a 200 that carries
+     * `Retry-After`, which is how a monitor whose own GET succeeded says
+     * "ask again then" (api-toolbox's does this). A 303 See Other there
+     * points at the result, which is fetched; any other 200 is the result
+     * itself, unless it reports the operation failed. Either way, the
      * original request's result() reads it. Any other response is returned
      * to result() as it is, so an API that answers synchronously works too.
      *
      * The monitor and result URIs have to be under the base URI, like any
-     * other request. RFC 7240 leaves this pattern to APIs; it's the one
-     * Microsoft's and Azure's guidelines use, and api-toolbox emits.
+     * other request. RFC 7240 section 4.1 and RFC 9110 section 15.3.3 name
+     * the 202 and its monitor but leave the monitor's answers to APIs.
      *
      * @template TResult
      *
@@ -222,14 +228,21 @@ class Connector
      * @return TResult
      *
      * @throws OperationTimeoutException when it's still running after `timeout` seconds
+     * @throws OperationFailedException when the monitor reports the operation failed
      */
     public function await(Request $request, float $timeout = 300.0, float $interval = 2.0): mixed
     {
         $started = $this->clock->now();
         $response = $this->checked($this->toPsr($request));
+        $location = $response->status() === 202 ? ($response->header('Location') ?? $response->header('Content-Location')) : null;
 
-        while ($response->status() === 202 && ($location = $response->header('Location') ?? $response->header('Content-Location')) !== null) {
-            $monitor = $this->follow($response, $location);
+        if ($location === null) {
+            return $request->result($response);
+        }
+
+        $monitor = $this->follow($response, $location);
+
+        while (true) {
             $wait = $response->retryAfter() ?? $interval;
             $waited = Seconds::between($started, $this->clock->now());
 
@@ -242,10 +255,66 @@ class Connector
 
             if ($response->status() === 303 && ($result = $response->header('Location')) !== null) {
                 $response = $this->checked($this->requests->createRequest('GET', $this->follow($response, $result)));
+
+                break;
             }
+
+            if ($response->status() === 202) {
+                // An older monitor may move itself along.
+                $next = $response->header('Location') ?? $response->header('Content-Location');
+                $monitor = $next === null ? $monitor : $this->follow($response, $next);
+
+                continue;
+            }
+
+            if ($response->status() === 200 && $response->header('Retry-After') !== null) {
+                continue;
+            }
+
+            break;
+        }
+
+        $failure = self::operationFailure($response);
+
+        if ($failure !== null) {
+            throw new OperationFailedException($this->redactor->uri($monitor), $failure);
         }
 
         return $request->result($response);
+    }
+
+    /**
+     * A monitor that reports a failed operation with a 200, as its own GET
+     * succeeded: `"status": "failed"` beside an RFC 9457 problem object in
+     * `error`, as api-toolbox's monitor does. A result that merely has a
+     * status field is left alone: without a problem in `error` it is not a
+     * report of failure.
+     */
+    private static function operationFailure(Response $response): ?ProblemDetails
+    {
+        if ($response->status() !== 200 || ! str_contains((string) $response->contentType(), 'json')) {
+            return null;
+        }
+
+        try {
+            $body = $response->json();
+        } catch (InvalidResponseException) {
+            return null;
+        }
+
+        $status = $body['status'] ?? null;
+        $error = $body['error'] ?? null;
+
+        if (! is_string($status) || ! in_array(strtolower($status), ['failed', 'canceled', 'cancelled'], true) || ! is_array($error)) {
+            return null;
+        }
+
+        if (! isset($error['type']) && ! isset($error['title'])) {
+            return null;
+        }
+
+        /** @var array<string, mixed> $error */
+        return ProblemDetails::fromArray($error, (string) $response->request()->getUri());
     }
 
     /**
