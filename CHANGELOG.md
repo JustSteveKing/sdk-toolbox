@@ -4,6 +4,14 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 
 ## [Unreleased]
 
+## [0.0.5] - 2026-10-29
+
+Documentation only. No code changes.
+
+### Documentation
+
+- `await()` follows the monitor's `303` itself, so the connector needs a PSR-18 client that doesn't follow redirects on its own. Symfony's `Psr18Client` does by default, which hides the `303` from `await()` and drops credentials on a redirect to another host; `docs/http-semantics.md` shows how to turn that off, and notes that Guzzle's PSR-18 `sendRequest()` already leaves redirects alone.
+
 ## [0.0.4] - 2026-10-29
 
 One fix, found by building an SDK against an API made with api-toolbox: `await()` and api-toolbox's status monitor now agree. Everything else behaves as it did.
@@ -60,7 +68,8 @@ The first release.
 - Testing tools: a fake client, fake time and recorded fixtures.
 - An agent skill for building SDKs with the toolbox.
 
-[Unreleased]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.4...HEAD
+[Unreleased]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.5...HEAD
+[0.0.5]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.1...v0.0.2
