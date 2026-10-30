@@ -17,8 +17,9 @@ use RuntimeException;
  * couldn't read the answer.
  *
  * The client's own exception is kept as the previous one, because it's the
- * useful part when debugging. Its message is the client's, though, and some
- * clients quote the full URL in it, query string and all.
+ * useful part when debugging, but as a RedactedClientException: some
+ * clients quote the full URL in their message, query string and all, and a
+ * log that writes out the exception chain would otherwise carry the key.
  */
 final class TransportException extends RuntimeException implements SdkException
 {
@@ -26,7 +27,7 @@ final class TransportException extends RuntimeException implements SdkException
         string $message,
         public readonly RequestSnapshot $request,
         public readonly bool $network,
-        ClientExceptionInterface $previous,
+        RedactedClientException $previous,
     ) {
         parent::__construct($message, previous: $previous);
     }
@@ -46,7 +47,7 @@ final class TransportException extends RuntimeException implements SdkException
             "Could not complete {$request->getMethod()} {$request->getUri()->getPath()}: {$reason}",
             $snapshot,
             $e instanceof NetworkExceptionInterface,
-            $e,
+            RedactedClientException::from($e, $redactor),
         );
     }
 }

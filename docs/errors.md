@@ -123,10 +123,10 @@ To map some of the API's errors to your own exceptions as well, write an `Except
 
 ## Transport errors
 
-When no response comes back, `TransportException` wraps the PSR-18 client's exception, which stays available as `getPrevious()`.
+When no response comes back, `TransportException` wraps the PSR-18 client's exception, and keeps a masked copy of it as `getPrevious()`.
 
 - **`$e->network`** is true for a network failure, as opposed to the client refusing the request itself.
 - **Credentials in the message are masked:** HTTP clients often quote the full URL in their error, query string and all.
-- **The previous exception's message isn't masked.** It's the client's own, kept because it's the useful part when debugging. Don't log it unfiltered.
+- **So is the previous exception's.** `getPrevious()` is a `RedactedClientException`: the client's class (in `$e->class` and at the start of the message), its code, file and line, and its message with credentials masked, and the same for any exception the client's own wraps. The original isn't kept, so logs that write out the whole chain, as Laravel's and Monolog's do, can't carry a key from it.
 
 A network failure on a safe request is retried before it's thrown: see [Reliability](reliability.md).
