@@ -4,6 +4,10 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 
 ## [Unreleased]
 
+## [0.0.6] - 2026-10-30
+
+Three additions for APIs that bend the usual shapes, found by planning an SDK for SerpApi on the toolbox. Everything already in 0.0.5 behaves as it did: each one is opt-in.
+
 ### Added
 
 - `poll()` on the connector, for asynchronous work that's a job you submit and then look up until a status field says it's finished, rather than a 202 and a monitor (SerpApi's async searches are one). `done` and an optional `failed` take the API's own words for each; it checks straight away, waits `Retry-After` or `interval` between checks, throws `OperationFailedException` or `OperationTimeoutException` as `await()` does, and returns the check's `result()`.
@@ -74,7 +78,8 @@ The first release.
 - Testing tools: a fake client, fake time and recorded fixtures.
 - An agent skill for building SDKs with the toolbox.
 
-[Unreleased]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.5...HEAD
+[Unreleased]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.6...HEAD
+[0.0.6]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.2...v0.0.3
