@@ -4,6 +4,10 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 
 ## [Unreleased]
 
+### Added
+
+- `carry` on `NextUrlPagination`: query parameters to put back on each next URL that lacks them, for APIs whose next links drop options the first request sent (SerpApi's leave out `no_cache` and `output`). A value the next URL sets is never overridden, and credentials come from the authenticator, never from carrying.
+
 ## [0.0.5] - 2026-10-29
 
 Documentation only. No code changes.

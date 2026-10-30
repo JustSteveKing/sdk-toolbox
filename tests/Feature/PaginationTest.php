@@ -2,15 +2,21 @@
 
 declare(strict_types=1);
 
+use JustSteveKing\SdkToolbox\Auth\QueryKey;
+use JustSteveKing\SdkToolbox\Connector;
 use JustSteveKing\SdkToolbox\Errors\NotFoundException;
 use JustSteveKing\SdkToolbox\Errors\PaginationException;
 use JustSteveKing\SdkToolbox\Errors\UnsafeUriException;
+use JustSteveKing\SdkToolbox\Http\Method;
+use JustSteveKing\SdkToolbox\Http\Response;
 use JustSteveKing\SdkToolbox\Pagination\CursorPagination;
 use JustSteveKing\SdkToolbox\Pagination\LinkPagination;
 use JustSteveKing\SdkToolbox\Pagination\NextUrlPagination;
 use JustSteveKing\SdkToolbox\Pagination\OffsetPagination;
 use JustSteveKing\SdkToolbox\Pagination\PagePagination;
 use JustSteveKing\SdkToolbox\Pagination\StartingAfterPagination;
+use JustSteveKing\SdkToolbox\Requests\HasQuery;
+use JustSteveKing\SdkToolbox\Requests\Request;
 use JustSteveKing\SdkToolbox\Testing\FakeClient;
 use JustSteveKing\SdkToolbox\Testing\FakeResponse;
 use JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\Acme;
@@ -94,6 +100,89 @@ it('refuses a next value that is not a URL', function (mixed $next): void {
 
     expect(fn () => (new Acme('t', $http))->paginate(new ListMembers, new NextUrlPagination)->all())->toThrow(PaginationException::class);
 })->with(['a number' => 2, 'a space' => 'page 2', 'an object' => [['url' => 'x']]]);
+
+it('carries query parameters the next URL drops', function (): void {
+    $http = new FakeClient(
+        FakeResponse::json(membersPage(['a'], ['next' => '/v2/members?page=2'])),
+        FakeResponse::json(membersPage(['b'], ['next' => '/v2/members?page=3'])),
+        FakeResponse::json(membersPage(['c'], ['next' => null])),
+    );
+
+    (new Acme('t', $http))->paginate(new ListMembers(Role::Owner), new NextUrlPagination(carry: ['role']))->all();
+
+    expect(queries($http->sent()))->toBe(['role=owner', 'page=2&role=owner', 'page=3&role=owner']);
+});
+
+it('never overrides a carried parameter the next URL sets itself', function (): void {
+    $http = new FakeClient(
+        FakeResponse::json(membersPage(['a'], ['next' => '/v2/members?role=admin&page=2'])),
+        FakeResponse::json(membersPage(['b'], ['next' => null])),
+    );
+
+    (new Acme('t', $http))->paginate(new ListMembers(Role::Owner), new NextUrlPagination(carry: ['role']))->all();
+
+    expect(queries($http->sent()))->toBe(['role=owner', 'role=admin&page=2']);
+});
+
+it('carries nothing the first request did not send, and only what it is told to', function (): void {
+    $http = new FakeClient(
+        FakeResponse::json(membersPage(['a'], ['next' => '/v2/members?page=2'])),
+        FakeResponse::json(membersPage(['b'], ['next' => null])),
+        FakeResponse::json(membersPage(['c'], ['next' => '/v2/members?page=2'])),
+        FakeResponse::json(membersPage(['d'], ['next' => null])),
+    );
+
+    (new Acme('t', $http))->paginate(new ListMembers, new NextUrlPagination(carry: ['role']))->all();
+    (new Acme('t', $http))->paginate(new ListMembers(Role::Owner), new NextUrlPagination)->all();
+
+    expect(queries($http->sent()))->toBe(['', 'page=2', 'role=owner', 'page=2']);
+});
+
+it('still refuses a next URL that leaves the base URI when carrying', function (): void {
+    $http = new FakeClient(FakeResponse::json(membersPage(['a'], ['next' => 'https://evil.example/steal'])));
+
+    expect(fn () => (new Acme('t', $http))->paginate(new ListMembers(Role::Owner), new NextUrlPagination(carry: ['role']))->all())
+        ->toThrow(UnsafeUriException::class);
+    $http->assertSentCount(1);
+});
+
+it('takes a query key from the authenticator on every page, never from carrying', function (): void {
+    $http = new FakeClient(
+        FakeResponse::json(['data' => [1], 'next' => '/v1/search?page=2&api_key=from-the-body']),
+        FakeResponse::json(['data' => [2], 'next' => null]),
+    );
+    $connector = new Connector('https://api.example.com/v1', auth: new QueryKey('api_key', 'secret'), http: $http);
+    $search = new readonly class implements HasQuery, Request
+    {
+        public function method(): Method
+        {
+            return Method::Get;
+        }
+
+        public function path(): string
+        {
+            return '/search';
+        }
+
+        public function query(): array
+        {
+            return ['q' => 'coffee'];
+        }
+
+        /**
+         * @return list<mixed>
+         */
+        public function result(Response $response): array
+        {
+            /** @var list<mixed> */
+            return $response->get('data');
+        }
+    };
+
+    $connector->paginate($search, new NextUrlPagination(carry: ['q', 'api_key']))->all();
+
+    expect(queries($http->sent()))->toBe(['q=coffee&api_key=secret', 'page=2&q=coffee&api_key=secret']);
+});
 
 it('sends a body cursor back, keeping the rest of the query', function (): void {
     $http = new FakeClient(

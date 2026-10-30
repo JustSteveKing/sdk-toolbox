@@ -86,6 +86,14 @@ PHPStan knows that's a `Paginator<Member>`, so `$member` is a `Member`.
 
 A strategy works on the PSR-7 request: `first()` shapes the first one and `next()` derives the next, so request classes never need to know they're paginated. Implement `Pagination` for an API that does something else.
 
+Some APIs' next URLs leave out options the first request sent, so the second page quietly answers a different question. `NextUrlPagination` puts back the parameters you name:
+
+```php
+$acme->paginate(new Search($query), new NextUrlPagination('serpapi_pagination.next', carry: ['no_cache', 'output']));
+```
+
+Each named parameter the request had and the next URL lacks is added as the request sent it. A value the API wrote into the next URL is never overridden, and credentials aren't carried: an authenticator such as `QueryKey` sets its own parameter on every page.
+
 `Link` headers are parsed as RFC 8288 Appendix B sets out:
 
 - relative targets are resolved against the request;
