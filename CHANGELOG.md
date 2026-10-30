@@ -7,6 +7,7 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 ### Added
 
 - `poll()` on the connector, for asynchronous work that's a job you submit and then look up until a status field says it's finished, rather than a 202 and a monitor (SerpApi's async searches are one). `done` and an optional `failed` take the API's own words for each; it checks straight away, waits `Retry-After` or `interval` between checks, throws `OperationFailedException` or `OperationTimeoutException` as `await()` does, and returns the check's `result()`.
+- `matchQuery` on `Recorder`: replay only when the query matches too, in any order, for APIs that answer every call at one path, such as `GET /search.json?engine=...`. Parameters the Redactor masks are left out, so a fake key still matches a recording made with a real one. Off by default, and fixtures are unchanged: they already keep each request's masked URI.
 - `carry` on `NextUrlPagination`: query parameters to put back on each next URL that lacks them, for APIs whose next links drop options the first request sent (SerpApi's leave out `no_cache` and `output`). A value the next URL sets is never overridden, and credentials come from the authenticator, never from carrying.
 
 ## [0.0.5] - 2026-10-29

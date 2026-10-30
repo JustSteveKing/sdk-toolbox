@@ -81,6 +81,7 @@ $acme = new Acme(getenv('ACME_TOKEN') ?: 'not-needed-for-replay', $http);
 - **Safe to commit.** Fixtures are JSON, written with credentials already masked: sensitive headers and query parameters, plus secret-looking keys in JSON and form bodies (`access_token`, `refresh_token`, `client_secret`, `password`, `api_key` and others) in both directions.
 - **Safe to name.** A fixture name is letters, digits, `-`, `_` and `/`, and can't resolve outside the directory. That's the path traversal Saloon fixed in v4.
 - **Strict on replay.** Requests have to arrive in the recorded order, with the recorded method and path. Anything else throws `FixtureMismatchException`, saying what differed, rather than quietly answering the wrong request.
+- **The query too, when you ask.** Some APIs answer every call at one path, such as `GET /search.json?engine=...`, so method and path can't tell one request from another. `new Recorder($dir, 'google/coffee', $mode, matchQuery: true)` makes the query match as well, in any order. Parameters the Redactor masks, such as an API key, are left out of the comparison, so a test replaying with a fake key still matches.
 
 ## Deprecated endpoints
 
