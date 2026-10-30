@@ -27,6 +27,7 @@ Pass `cache: $psr16Cache` to the connector for an RFC 9111 private cache.
 
 - **Preferences:** a request implements `Requests\HasPreferences` and returns `Http\Preferences::none()->respondAsync()`, `->returnMinimal()` or `->wait(10)`.
 - **202 operations:** `$sdk->await($request, timeout: 300.0)` follows 202 plus `Location`, polling while the monitor answers 202 or 200 with `Retry-After`, to a 303 or a final 200, then returns `result()`. A monitor reporting `"status": "failed"` with a problem in `error` throws `Errors\OperationFailedException`; send `Prefer: respond-async` with `HasPreferences` so the API answers 202.
+- **Submit-then-look-up jobs** (no 202, a status field instead): `$sdk->poll($check, done: fn (Response $r): bool => ..., failed: fn (Response $r): ?ProblemDetails => ..., timeout: 120.0)`. It checks straight away, waits `Retry-After` or `interval` between checks, and returns the check's `result()`.
 
 ## Logging, events, tracing
 
