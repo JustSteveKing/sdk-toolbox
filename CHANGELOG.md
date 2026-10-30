@@ -4,6 +4,8 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 
 ## [Unreleased]
 
+## [0.0.7] - 2026-10-30
+
 Collections, so the people using an SDK built on the toolbox can work with what it returns without writing the loop. Nothing to install.
 
 ### Added
@@ -92,7 +94,8 @@ The first release.
 - Testing tools: a fake client, fake time and recorded fixtures.
 - An agent skill for building SDKs with the toolbox.
 
-[Unreleased]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.6...HEAD
+[Unreleased]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.7...HEAD
+[0.0.7]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.4...v0.0.5
 [0.0.4]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.3...v0.0.4
