@@ -8,7 +8,7 @@ declare(strict_types=1);
  * like code: every toolbox class they name exists, every relative link
  * and anchor resolves, and every PHP example parses.
  */
-const NAMESPACES = 'Auth|Bodies|Caching|Deprecation|Errors|Events|Http|Hydration|Integrity|Middleware|Observability|Pagination|RateLimits|Redaction|Requests|Retries|Signatures|Testing|Time|Webhooks';
+const NAMESPACES = 'Auth|Bodies|Caching|Collections|Deprecation|Errors|Events|Http|Hydration|Integrity|Middleware|Observability|Pagination|RateLimits|Redaction|Requests|Retries|Signatures|Testing|Time|Webhooks';
 
 /**
  * @return list<string>

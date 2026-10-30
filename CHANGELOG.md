@@ -4,6 +4,20 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 
 ## [Unreleased]
 
+Collections, so the people using an SDK built on the toolbox can work with what it returns without writing the loop. Nothing to install.
+
+### Added
+
+- `Collections\Collection`: items in memory, with `first()`, `map()`, `filter()`, `where()`, `pluck()`, `groupBy()`, `sortBy()`, `sum()` and the rest, named as Laravel's collections name them. Immutable; items can be decoded JSON or typed objects, read by dotted path.
+- `Collections\LazyCollection`: the same methods over items that arrive one at a time, reading only as many as a chain needs.
+- `Response::collect($path)`: the JSON at a dotted path as a `Collection`.
+- `Errors\CollectionException`, thrown for a write to a collection, an unknown `where()` operator, or a key that can't key an array.
+
+### Changed
+
+- **`Paginator` is a `LazyCollection`.** Every collection method works across pages, fetching only the pages it needs: `firstWhere('role', Role::Owner)` stops at the page holding the first owner.
+- **Breaking: `Paginator::take()` returns a `LazyCollection`, not an array.** Call `->take(10)->all()` for the array. `all()` still returns an array, and `count($paginator)` now works, reading every page.
+
 ## [0.0.6] - 2026-10-30
 
 Three additions for APIs that bend the usual shapes. Everything already in 0.0.5 behaves as it did: each one is opt-in.

@@ -31,3 +31,12 @@ it('knows success from failure', function (): void {
         ->and(response(FakeResponse::empty(304))->failed())->toBeFalse()
         ->and(response(FakeResponse::empty(404))->failed())->toBeTrue();
 });
+
+it('collects the body, or the part at a dotted path', function (): void {
+    $response = response(FakeResponse::json(['data' => [['id' => 'a'], ['id' => 'b']], 'meta' => ['total' => 2]]));
+
+    expect($response->collect('data')->pluck('id')->all())->toBe(['a', 'b'])
+        ->and($response->collect()->keys()->all())->toBe(['data', 'meta'])
+        ->and($response->collect('missing')->isEmpty())->toBeTrue()
+        ->and($response->collect('meta.total')->all())->toBe([2]);
+});

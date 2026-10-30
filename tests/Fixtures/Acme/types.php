@@ -29,3 +29,12 @@ assertType('JustSteveKing\SdkToolbox\Pagination\Paginator<JustSteveKing\SdkToolb
 foreach ($acme->paginate(new JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\ListMembers, new JustSteveKing\SdkToolbox\Pagination\LinkPagination) as $member) {
     assertType(JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\Member::class, $member);
 }
+
+// A paginator is a lazy collection, and the item type carries through its methods.
+$members = $acme->paginate(new JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\ListMembers, new JustSteveKing\SdkToolbox\Pagination\LinkPagination);
+assertType('JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\Member|null', $members->first());
+assertType('JustSteveKing\SdkToolbox\Collections\LazyCollection<int, JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\Member>', $members->where('role', JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\Role::Owner));
+assertType('JustSteveKing\SdkToolbox\Collections\LazyCollection<int, string>', $members->map(fn (JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\Member $member): string => $member->id));
+assertType('JustSteveKing\SdkToolbox\Collections\Collection<int, JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\Member>', $members->take(10)->collect());
+assertType('JustSteveKing\SdkToolbox\Collections\Collection<int, string>', JustSteveKing\SdkToolbox\Collections\Collection::make($members->all())->map(fn (JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\Member $member): string => $member->displayName));
+assertType('JustSteveKing\SdkToolbox\Collections\Collection<(int|string), mixed>', $acme->response(new GetProject('prj_1'))->collect('data'));
