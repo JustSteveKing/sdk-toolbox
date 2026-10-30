@@ -32,7 +32,7 @@ final readonly class Member
 
 A response that doesn't fit throws `HydrationException`, naming the field in the API's own terms: `display_name: Value 42 is not a valid string.` The message includes the offending value, which is response data, never a credential.
 
-`at:` reaches into an envelope by dotted path (`data`, `data.items`), and `$response->get('meta.total')` reads a single value the same way.
+`at:` reaches into an envelope by dotted path (`data`, `data.items`), and `$response->get('meta.total')` reads a single value the same way. For data you'd rather not type, `$response->collect('data')` gives a [Collection](#collections).
 
 To use something other than Valinor, implement `Hydrator` (two methods) and pass it to the connector as `hydrator:`. Without Valinor and without a hydrator, `map()` throws and says to install one.
 
@@ -73,6 +73,13 @@ foreach ($acme->paginate(new ListMembers, new CursorPagination('meta.next_cursor
 
 PHPStan knows that's a `Paginator<Member>`, so `$member` is a `Member`.
 
+A paginator is also a [lazy collection](#collections), so the people using your SDK can filter and map across every page without writing the loop, and only the pages they need are fetched:
+
+```php
+$owner = $acme->paginate(new ListMembers, new CursorPagination('meta.next_cursor'))
+    ->firstWhere('role', Role::Owner);
+```
+
 ### Strategies
 
 | Strategy | For an API that... |
@@ -107,12 +114,13 @@ Each named parameter the request had and the next URL lacks is added as the requ
 - **Every page is a full request.** Retries, the throttle, your middleware and authentication all apply, and an error status on any page throws.
 - **Next links stay on the API.** A `next` URL outside the base URI, from a `Link` header or the body, throws `UnsafeUriException` before it's sent.
 - **No endless loops.** A page whose request repeats the one before throws `PaginationException`, and `maxPages` caps a longer cycle.
-- **Only what's needed.** `take(10)` fetches the pages that hold ten items and stops.
+- **Only what's needed.** `take(10)` fetches the pages that hold ten items and stops, and so do `first()`, `contains()` and anything else that can stop early.
+- **Read twice, fetched twice.** Iterating the paginator again sends the requests again. To use the same items more than once, `collect()` them into a `Collection`.
 
 ```php
 $paginator = $acme->paginate(new ListMembers, new LinkPagination, maxPages: 50);
 
-$first = $paginator->take(10);
+$first = $paginator->take(10)->all();
 
 foreach ($paginator->pages() as $page) {
     $page->number;       // from 1
@@ -120,3 +128,65 @@ foreach ($paginator->pages() as $page) {
     $page->response;     // its Response, headers and all
 }
 ```
+
+## Collections
+
+`Collections\Collection` holds items in memory with the methods you'd otherwise write as loops, and `Collections\LazyCollection` has the same methods over items that arrive one at a time. There's no standard for this, so the names are the ones Laravel's collections use: they read the same in a Laravel app, a Symfony app or plain PHP, and nothing extra is installed.
+
+You get one from three places:
+
+```php
+$response->collect('data');                  // the JSON at a path, as a Collection
+$acme->paginate(new ListMembers, $strategy); // a Paginator, which is a LazyCollection
+new Collection($members);                    // anything iterable
+```
+
+And then:
+
+```php
+$response->collect('data')
+    ->where('status', 'active')
+    ->sortByDesc('created_at')
+    ->pluck('name', 'id');
+
+$paginator
+    ->filter(fn (Member $member): bool => $member->avatarUrl === null)
+    ->map(fn (Member $member): string => $member->displayName)
+    ->take(20)
+    ->all();
+```
+
+Items can be decoded JSON arrays or typed objects. A string key reads either, by dotted path into nested data (`'source.name'`), and through an object's public properties only. A string is always a key, never a function name, so `pluck('count')` reads a field called `count`.
+
+| | Collection | LazyCollection and Paginator |
+|---|---|---|
+| Filtering | `filter` `reject` `where` `whereIn` `partition` `unique` | `filter` `reject` `where` `whereIn` `unique` `takeWhile` |
+| Finding | `first` `last` `firstWhere` `get` `has` `contains` `every` | `first` `firstWhere` `contains` `every` |
+| Reshaping | `map` `flatMap` `mapWithKeys` `pluck` `keyBy` `groupBy` `values` `keys` `merge` | `map` `flatMap` `pluck` `values` `keys` |
+| Ordering and slicing | `sortBy` `sortByDesc` `reverse` `take` `skip` `slice` `chunk` | `take` `skip` `chunk` |
+| Reducing | `reduce` `sum` `avg` `min` `max` `count` `implode` `isEmpty` | `reduce` `sum` `count` `isEmpty` |
+| Out | `all` `toArray` `lazy` and `json_encode()` | `all` `collect` `toArray` and `json_encode()` |
+
+How they behave:
+
+- **Immutable.** Every method returns a new collection, and writing through `$items['key'] = ...` throws `Errors\CollectionException`.
+- **Keys are kept** by `filter()`, `sortBy()` and the rest, as PHP's array functions keep them, and `values()` renumbers.
+- **`where()` with two arguments compares strictly,** so `where('id', '42')` doesn't match the integer `42`. With three it takes an operator: `= == === != <> !== < <= > >=`, where `=` and `==` are loose as in PHP.
+- **Lazy means lazy.** A LazyCollection reads nothing until something asks for items, and stops reading as soon as it has what it needs. `count()` and `all()` read everything; on a paginator that's every page.
+- **Each read starts again.** A LazyCollection calls its source afresh for every read, which for a paginator means fetching the pages again.
+
+For SDK authors, a request whose items are only ever read can return a `Collection` from `result()` rather than an array:
+
+```php
+/** @implements Request<Collection<int, Member>> */
+final readonly class ListTeamMembers implements Request
+{
+    // method(), path() ...
+    public function result(Response $response): Collection
+    {
+        return new Collection($response->mapList(Member::class, at: 'data'));
+    }
+}
+```
+
+Keep `list<Member>` for a request you'll paginate: the paginator takes each page's items as they come and is already the collection.

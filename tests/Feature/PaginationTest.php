@@ -273,3 +273,46 @@ it('throws the status exception for a page that fails', function (): void {
 
     expect(fn () => (new Acme('t', $http))->paginate(new ListMembers, new CursorPagination)->all())->toThrow(NotFoundException::class);
 });
+
+it('is a lazy collection that fetches only the pages a chain needs', function (): void {
+    $http = new FakeClient(
+        FakeResponse::json(membersPage(['a', 'b'], ['next_cursor' => 'x'])),
+        FakeResponse::json(membersPage(['c', 'd'], ['next_cursor' => 'y'])),
+        FakeResponse::json(membersPage(['e', 'f'])),
+    );
+
+    $member = (new Acme('t', $http))->paginate(new ListMembers, new CursorPagination)
+        ->first(fn (Member $member): bool => $member->id === 'c');
+
+    expect($member?->id)->toBe('c');
+    $http->assertSentCount(2);
+});
+
+it('maps and filters across pages', function (): void {
+    $http = new FakeClient(
+        FakeResponse::json(membersPage(['a', 'b'], ['next_cursor' => 'x'])),
+        FakeResponse::json(membersPage(['c', 'd'])),
+    );
+
+    $ids = (new Acme('t', $http))->paginate(new ListMembers, new CursorPagination)
+        ->reject(fn (Member $member): bool => $member->id === 'b')
+        ->map(fn (Member $member): string => strtoupper($member->id))
+        ->values()
+        ->all();
+
+    expect($ids)->toBe(['A', 'C', 'D']);
+});
+
+it('fetches the pages again when read again, and once when collected', function (): void {
+    $http = new FakeClient(...array_fill(0, 3, FakeResponse::json(membersPage(['a', 'b']))));
+    $members = (new Acme('t', $http))->paginate(new ListMembers, new CursorPagination);
+
+    $members->all();
+    $members->all();
+    $http->assertSentCount(2);
+
+    $collected = $members->collect();
+    $collected->first();
+    $collected->count();
+    $http->assertSentCount(3);
+});

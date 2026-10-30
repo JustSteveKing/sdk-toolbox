@@ -6,32 +6,40 @@ namespace JustSteveKing\SdkToolbox\Pagination;
 
 use Closure;
 use Generator;
-use IteratorAggregate;
+use JustSteveKing\SdkToolbox\Collections\LazyCollection;
 use JustSteveKing\SdkToolbox\Errors\PaginationException;
 use JustSteveKing\SdkToolbox\Http\Response;
 use JustSteveKing\SdkToolbox\Requests\Request;
 use Psr\Http\Message\RequestInterface;
 
 /**
- * Every item across every page, fetched lazily.
+ * Every item across every page, fetched lazily, as a LazyCollection.
  *
  * Only the page being read is in memory: iterating a million items holds
- * one page at a time, unless you collect them with all(). Each page is a
- * full request through the connector, so retries, the throttle and your
- * middleware apply to every one.
+ * one page at a time, unless you collect them with all() or collect(). Each
+ * page is a full request through the connector, so retries, the throttle
+ * and your middleware apply to every one.
  *
  *     foreach ($acme->paginate(new ListProjects, new CursorPagination('meta.next_cursor')) as $project) {
  *         // ...
  *     }
+ *
+ *     $acme->paginate(new ListProjects, new CursorPagination('meta.next_cursor'))
+ *         ->where('archived', false)
+ *         ->first();
+ *
+ * The collection methods fetch only the pages they need: first() stops at
+ * the first page holding a match, and take(10) at the page holding the
+ * tenth item. Reading the paginator a second time fetches the pages again.
  *
  * A request repeating the previous one (the API linked a page to itself)
  * throws instead of looping, and `maxPages` caps a longer cycle.
  *
  * @template TItem
  *
- * @implements IteratorAggregate<int, TItem>
+ * @extends LazyCollection<int, TItem>
  */
-final readonly class Paginator implements IteratorAggregate
+final readonly class Paginator extends LazyCollection
 {
     /**
      * @param  Request<iterable<TItem>>  $request
@@ -43,12 +51,14 @@ final readonly class Paginator implements IteratorAggregate
         private Pagination $pagination,
         private Closure $send,
         private ?int $maxPages = null,
-    ) {}
+    ) {
+        parent::__construct(fn (): Generator => $this->items());
+    }
 
     /**
      * @return Generator<int, TItem>
      */
-    public function getIterator(): Generator
+    private function items(): Generator
     {
         $index = 0;
 
@@ -92,40 +102,5 @@ final readonly class Paginator implements IteratorAggregate
             $previous = $uri;
             $psr = $next;
         }
-    }
-
-    /**
-     * The first `$count` items, fetching only the pages needed.
-     *
-     * @return list<TItem>
-     */
-    public function take(int $count): array
-    {
-        $items = [];
-
-        if ($count < 1) {
-            return $items;
-        }
-
-        foreach ($this as $item) {
-            $items[] = $item;
-
-            if (count($items) >= $count) {
-                break;
-            }
-        }
-
-        return $items;
-    }
-
-    /**
-     * Every item in memory at once. Fine for a few pages; iterate instead
-     * for more.
-     *
-     * @return list<TItem>
-     */
-    public function all(): array
-    {
-        return iterator_to_array($this, false);
     }
 }

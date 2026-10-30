@@ -6,6 +6,7 @@ namespace JustSteveKing\SdkToolbox\Http;
 
 use DateTimeImmutable;
 use JsonException;
+use JustSteveKing\SdkToolbox\Collections\Collection;
 use JustSteveKing\SdkToolbox\Deprecation\DeprecationNotice;
 use JustSteveKing\SdkToolbox\Errors\HydrationException;
 use JustSteveKing\SdkToolbox\Errors\InvalidRequestException;
@@ -103,6 +104,24 @@ final readonly class Response
     public function get(string $path): mixed
     {
         return JsonPath::get($this->json(), $path);
+    }
+
+    /**
+     * The JSON body, or the part of it at a dotted path, as a Collection:
+     * `$response->collect('data')->pluck('name')`. A path that isn't there
+     * gives an empty collection, and a single value one holding it.
+     *
+     * @return Collection<array-key, mixed>
+     */
+    public function collect(?string $at = null): Collection
+    {
+        $value = JsonPath::get($this->json(), $at);
+
+        return new Collection(match (true) {
+            $value === null => [],
+            is_array($value) => $value,
+            default => [$value],
+        });
     }
 
     /**

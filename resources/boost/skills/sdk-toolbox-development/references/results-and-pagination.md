@@ -54,5 +54,15 @@ Implement `Pagination\Pagination` (`first()` and `next()` on the PSR-7 request) 
 Rules:
 
 - Don't collect pages into arrays yourself: the paginator holds one page in memory.
-- Use `->take(n)` for "the first n", and `->pages()` when the caller needs each page's response.
+- A `Paginator` is a `Collections\LazyCollection`: callers chain `->where()`, `->map()`, `->first()`, `->take(n)` and the rest, and only the pages needed are fetched. `->take(n)` is lazy; `->take(n)->all()` gives the array.
+- Use `->pages()` when the caller needs each page's response.
+- Reading a paginator twice fetches twice. Tell callers to `->collect()` once if they need the items more than once.
 - Pass `maxPages:` when an API's paging can't be trusted to end.
+
+## Collections
+
+- `$response->collect('path')` gives a `Collections\Collection` of untyped JSON. Prefer typed results (`map()`, `mapList()`) for anything an SDK's users rely on; use collections for data with no stable shape.
+- A request can return `Collection<int, Item>` from `result()` when it's never paginated. Keep `list<Item>` for paginated requests.
+- Method names are Laravel's (`first`, `map`, `filter`, `where`, `pluck`, `groupBy`, `sortBy`, ...), with no dependency on Laravel. Two-argument `where()` compares strictly.
+- Collections are immutable. Never add a mutating method or a macro.
+

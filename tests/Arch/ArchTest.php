@@ -41,6 +41,7 @@ arch('values are immutable')
         'JustSteveKing\SdkToolbox\Redaction',
         'JustSteveKing\SdkToolbox\Pagination',
         'JustSteveKing\SdkToolbox\Hydration',
+        'JustSteveKing\SdkToolbox\Collections',
     ])
     ->classes()
     ->toBeReadonly()

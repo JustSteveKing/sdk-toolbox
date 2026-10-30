@@ -161,9 +161,15 @@ return $response->map(Member::class, at: 'data');   // with cuyz/valinor install
 foreach ($acme->paginate(new ListMembers, new CursorPagination('meta.next_cursor')) as $member) {
     // every member, one page in memory at a time
 }
+
+$acme->paginate(new ListMembers, new CursorPagination('meta.next_cursor'))
+    ->where('role', Role::Owner)
+    ->first();                                       // fetches only the pages it needs
+
+$response->collect('data')->pluck('name', 'id');     // untyped data, as a collection
 ```
 
-Pagination follows `Link` headers, a next-page URL in the body, cursors, offsets, page numbers or Stripe's `starting_after`.
+Pagination follows `Link` headers, a next-page URL in the body, cursors, offsets, page numbers or Stripe's `starting_after`. A paginator is a lazy collection, with `map()`, `filter()`, `first()` and the other collection methods you'd expect, and nothing to install.
 
 More in [Results and pagination](docs/results-and-pagination.md).
 
