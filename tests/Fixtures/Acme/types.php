@@ -19,6 +19,7 @@ $acme = new Acme('token', new FakeClient);
 
 assertType(JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\Project::class, $acme->send(new GetProject('prj_1')));
 assertType(Response::class, $acme->response(new GetProject('prj_1')));
+assertType(JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\Project::class, $acme->poll(new GetProject('prj_1'), fn (Response $response): bool => true));
 assertType(Acme::class, $acme->withHeaders(['X-Trace' => '1']));
 
 assertType(JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\Member::class, $acme->send(new JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\GetMember('m_1')));

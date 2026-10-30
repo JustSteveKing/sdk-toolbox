@@ -105,3 +105,20 @@ $export = $acme->await(new StartExport($filters), timeout: 300.0, interval: 2.0)
 `await()` follows the `303` itself, so give the connector a PSR-18 client that doesn't. Symfony's `Psr18Client` follows redirects by default: the monitor's `303` then never reaches `await()`, which gets the result as the monitor's answer instead, and a redirect to another host goes without the credentials. `new Psr18Client(HttpClient::create(['max_redirects' => 0]))` leaves redirects to the SDK. Guzzle's PSR-18 `sendRequest()` already does: it turns `allow_redirects` off for every request.
 
 A request the API answers straight away comes back as normal. Every monitor and result URI has to be under the base URI. At the timeout, `OperationTimeoutException` carries the monitor URI, so you can look again later: the operation may still finish.
+
+Not every API's asynchronous work is a 202 and a monitor. Some take a job, give you an ID, and leave you to look it up until a status field says it's finished: SerpApi's async searches work like this, read back from its Search Archive. There's no standard for it, so `poll()` takes the API's own words for "done" and, optionally, "failed":
+
+```php
+$id = $serpapi->send(new SubmitSearch($query))->id;
+
+$result = $serpapi->poll(
+    new GetArchivedSearch($id),
+    done: fn (Response $response): bool => $response->get('search_metadata.status') === 'Success',
+    failed: fn (Response $response): ?ProblemDetails => $response->get('search_metadata.status') === 'Error'
+        ? new ProblemDetails(title: 'Search failed', detail: (string) $response->get('error'))
+        : null,
+    timeout: 120.0,
+);
+```
+
+The first check goes straight away. Between checks it waits as long as `Retry-After` says, or `interval`. `done` returning true gives you the check's `result()`; `failed` returning a problem throws `OperationFailedException` with it; anything else means "still running", until `timeout` throws `OperationTimeoutException`. Both carry the check's URI, taken before authentication, so credentials are never in it. An error status throws as it would from `send()`.

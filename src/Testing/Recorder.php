@@ -29,7 +29,11 @@ use Psr\Http\Message\ResponseInterface;
  *   read a file anywhere else (the path traversal Saloon fixed in v4).
  * - **Strict on replay.** Requests must come in the recorded order with
  *   the recorded method and path; anything else throws, rather than
- *   quietly answering the wrong request.
+ *   quietly answering the wrong request. With `matchQuery: true` the
+ *   query has to match too, in any order, for an API that answers every
+ *   call at one path (`GET /search.json?engine=...`), where the path alone
+ *   can't tell one request from another. Parameters the Redactor masks,
+ *   such as an API key, are left out of the comparison.
  */
 final class Recorder implements ClientInterface
 {
@@ -48,6 +52,7 @@ final class Recorder implements ClientInterface
 
     /**
      * @param  list<string>  $secretKeys  JSON and form keys whose values are masked
+     * @param  bool  $matchQuery  replay only when the query matches too, ignoring order and masked parameters
      */
     public function __construct(
         string $directory,
@@ -56,6 +61,7 @@ final class Recorder implements ClientInterface
         private readonly ?ClientInterface $client = null,
         private readonly Redactor $redactor = new Redactor,
         private readonly array $secretKeys = self::SECRET_KEYS,
+        private readonly bool $matchQuery = false,
     ) {
         if (preg_match('/^[A-Za-z0-9_-]+(\/[A-Za-z0-9_-]+)*$/', $fixture) !== 1) {
             throw new InvalidRequestException("A fixture name is letters, digits, '-', '_' and '/': [{$fixture}].");
@@ -101,7 +107,48 @@ final class Recorder implements ClientInterface
             throw new FixtureMismatchException("Request {$this->position} was {$actual}, but the fixture recorded {$recorded}.");
         }
 
+        if ($this->matchQuery) {
+            $sent = $this->comparable((string) parse_url($this->redactor->uri((string) $request->getUri()), PHP_URL_QUERY));
+            $kept = $this->comparable((string) parse_url(is_string($expected['uri'] ?? null) ? $expected['uri'] : '', PHP_URL_QUERY));
+
+            if ($sent !== $kept) {
+                throw new FixtureMismatchException(sprintf(
+                    'Request %d was %s?%s, but the fixture recorded %s?%s.',
+                    $this->position,
+                    $actual,
+                    implode('&', $sent),
+                    $recorded,
+                    implode('&', $kept),
+                ));
+            }
+        }
+
         return $this->toResponse($interaction['response']);
+    }
+
+    /**
+     * A query as sorted, decoded `name=value` pairs, without the ones the
+     * Redactor masked, so order and credentials don't count.
+     *
+     * @return list<string>
+     */
+    private function comparable(string $query): array
+    {
+        $pairs = [];
+
+        foreach ($query === '' ? [] : explode('&', $query) as $pair) {
+            [$name, $value] = array_pad(explode('=', $pair, 2), 2, '');
+
+            if (rawurldecode($value) === Redactor::MASK) {
+                continue;
+            }
+
+            $pairs[] = rawurldecode($name).'='.rawurldecode($value);
+        }
+
+        sort($pairs);
+
+        return $pairs;
     }
 
     private function record(RequestInterface $request): ResponseInterface

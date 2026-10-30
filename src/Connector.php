@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JustSteveKing\SdkToolbox;
 
+use Closure;
 use Http\Discovery\Psr17FactoryDiscovery;
 use Http\Discovery\Psr18ClientDiscovery;
 use JustSteveKing\SdkToolbox\Auth\Authenticate;
@@ -81,7 +82,7 @@ use Psr\SimpleCache\CacheInterface;
  */
 class Connector
 {
-    public const string VERSION = '0.0.5';
+    public const string VERSION = '0.0.6';
 
     private readonly BaseUri $baseUri;
 
@@ -281,6 +282,62 @@ class Connector
         }
 
         return $request->result($response);
+    }
+
+    /**
+     * Sends a status check until it says the work is done, and returns the
+     * check's result().
+     *
+     * For APIs whose asynchronous work isn't a 202 and a monitor, but a job
+     * you submit and then look up until a status field says it's finished:
+     * SerpApi's async searches, read back from its Search Archive, are one.
+     * There's no standard for this; it's a convention, so the API's own
+     * words for "done" and "failed" are passed in. `$done` gets each
+     * response and says whether it's finished. `$failed`, if given, reads
+     * a failure from one and returns it as a problem, which is thrown as
+     * OperationFailedException. Anything else means "still running".
+     *
+     * The first check is sent straight away. Between checks it waits as
+     * long as the response's `Retry-After` says (RFC 9110 section 10.2.3),
+     * or `interval`. An error status throws as it would from send().
+     *
+     * @template TResult
+     *
+     * @param  Request<TResult>  $request  the status check, sent until it's done
+     * @param  Closure(Response): bool  $done
+     * @param  (Closure(Response): ?ProblemDetails)|null  $failed
+     * @return TResult
+     *
+     * @throws OperationTimeoutException when it's still running after `timeout` seconds
+     * @throws OperationFailedException when `$failed` reads a failure
+     */
+    public function poll(Request $request, Closure $done, ?Closure $failed = null, float $timeout = 300.0, float $interval = 2.0): mixed
+    {
+        $started = $this->clock->now();
+        $uri = $this->redactor->uri((string) $this->toPsr($request)->getUri());
+
+        while (true) {
+            // Built afresh each time, so a check with a body never resends a spent stream.
+            $response = $this->checked($this->toPsr($request));
+            $failure = $failed === null ? null : $failed($response);
+
+            if ($failure !== null) {
+                throw new OperationFailedException($uri, $failure);
+            }
+
+            if ($done($response)) {
+                return $request->result($response);
+            }
+
+            $wait = $response->retryAfter() ?? $interval;
+            $waited = Seconds::between($started, $this->clock->now());
+
+            if ($waited + $wait > $timeout) {
+                throw new OperationTimeoutException($uri, $waited);
+            }
+
+            $this->sleeper->sleep($wait);
+        }
     }
 
     /**

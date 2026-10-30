@@ -43,7 +43,7 @@ Expose it from a resource as `public function all(): Paginator` (`@return Pagina
 | The API... | Strategy |
 |---|---|
 | sends `Link: <...>; rel="next"` | `Pagination\LinkPagination` |
-| returns the next page's URL in the body (`"next": "https://..."`) | `Pagination\NextUrlPagination('path.to.next')` |
+| returns the next page's URL in the body (`"next": "https://..."`) | `Pagination\NextUrlPagination('path.to.next')`, with `carry: ['param']` for options the next URL drops |
 | returns a cursor in the body, wants it as `?cursor=` | `Pagination\CursorPagination('path.to.cursor', parameter: 'cursor')` |
 | returns `has_more` and pages by `starting_after` | `Pagination\StartingAfterPagination` |
 | takes `offset` and `limit` | `Pagination\OffsetPagination(limit: 100)` |

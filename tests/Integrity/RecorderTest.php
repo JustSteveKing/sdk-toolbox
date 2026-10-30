@@ -74,3 +74,40 @@ it('reads its mode from the environment, replay when unset', function (): void {
     expect(RecordMode::fromEnvironment())->toBe(RecordMode::Record);
     putenv('SDK_FIXTURES');
 });
+
+/**
+ * A fixture holding one search, recorded with a live key.
+ */
+function searchFixture(): string
+{
+    $directory = fixtures();
+    recorded(new Recorder($directory, 'search', RecordMode::Record, new FakeClient(FakeResponse::json(['ok' => true]))))
+        ->response(ping(['engine' => 'google', 'q' => 'coffee shops', 'api_key' => 'live-key']));
+
+    return $directory;
+}
+
+it('replays a request whose query matches, in any order, when matching the query', function (): void {
+    $directory = searchFixture();
+
+    expect(recorded(new Recorder($directory, 'search', matchQuery: true))->response(ping(['engine' => 'google', 'q' => 'coffee shops', 'api_key' => 'live-key']))->json())->toBe(['ok' => true])
+        ->and(recorded(new Recorder($directory, 'search', matchQuery: true))->response(ping(['q' => 'coffee shops', 'engine' => 'google', 'api_key' => 'live-key']))->json())->toBe(['ok' => true]);
+});
+
+it('refuses a request whose query differs, saying how, when matching the query', function (): void {
+    $replay = recorded(new Recorder(searchFixture(), 'search', matchQuery: true));
+
+    expect(fn () => $replay->response(ping(['engine' => 'youtube', 'q' => 'coffee shops', 'api_key' => 'live-key'])))
+        ->toThrow(FixtureMismatchException::class, 'was GET /ping?engine=youtube&q=coffee shops, but the fixture recorded GET /ping?engine=google&q=coffee shops');
+});
+
+it('leaves masked parameters out of the comparison, so a test needs no real key', function (): void {
+    $directory = searchFixture();
+
+    expect(recorded(new Recorder($directory, 'search', matchQuery: true))->response(ping(['engine' => 'google', 'q' => 'coffee shops', 'api_key' => 'fake']))->json())->toBe(['ok' => true])
+        ->and(recorded(new Recorder($directory, 'search', matchQuery: true))->response(ping(['engine' => 'google', 'q' => 'coffee shops']))->json())->toBe(['ok' => true]);
+});
+
+it('still matches method and path only by default', function (): void {
+    expect(recorded(new Recorder(searchFixture(), 'search'))->response(ping(['engine' => 'youtube']))->json())->toBe(['ok' => true]);
+});

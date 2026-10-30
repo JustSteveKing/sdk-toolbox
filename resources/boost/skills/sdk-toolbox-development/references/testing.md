@@ -54,7 +54,7 @@ $http = new Testing\Recorder(__DIR__.'/fixtures', 'projects/list', Testing\Recor
 
 - **Replay is the default.** `SDK_FIXTURES=record` re-records against the real API.
 - **Masking:** fixtures are written with credentials masked. Still read a new fixture before committing it, in case the API echoes something personal.
-- **Strict replay:** a `Testing\FixtureMismatchException` means the SDK now sends something different from the recording. Re-record or fix the SDK.
+- **Strict replay:** a `Testing\FixtureMismatchException` means the SDK now sends something different from the recording. Re-record or fix the SDK. For an API that answers everything at one path, pass `matchQuery: true` to the `Recorder` so the query must match too (order and masked parameters ignored).
 
 ## Type checks
 
