@@ -4,6 +4,16 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 
 ## [Unreleased]
 
+A security fix: an API key sent as a query parameter could reach a log through a transport error's exception chain.
+
+### Fixed
+
+- **`TransportException::getPrevious()` no longer holds the HTTP client's exception unmasked.** Clients such as Guzzle quote the full URL in their messages, so with `QueryKey` the key was in that exception, and any log that writes out the chain, as Laravel's exception handler and Monolog do, recorded it. It's now a `RedactedClientException`, new in `Errors`: the client's class name, code, file and line, and its message with credentials masked by the connector's `Redactor`, and the same for the exceptions it wraps. The original isn't kept, so it can't leak through a dump either.
+
+### Changed
+
+- **Breaking:** `TransportException::getPrevious()` returns a `RedactedClientException` rather than the client's own exception, and the constructor takes one. Code that checked the previous exception's class reads `$previous->class` instead. Code that rethrew or inspected the client's exception for its request can use `$e->request`, the redacted snapshot.
+
 ## [0.0.7] - 2026-10-30
 
 Collections, so the people using an SDK built on the toolbox can work with what it returns without writing the loop. Nothing to install.

@@ -32,7 +32,7 @@ The sensitive names start with:
 
 An authenticator adds whatever header or parameter it writes to, and you can pass your own `Redactor` with more names.
 
-One gap, on purpose: a `TransportException` keeps the HTTP client's own exception as `getPrevious()`, unmasked, because it's the useful part when debugging. Don't log it unfiltered.
+That includes the exception chain. A `TransportException` keeps the HTTP client's own exception as `getPrevious()` because it's the useful part when debugging, but as a `RedactedClientException`: the client's class, code, file and line, and its message masked, down through any exceptions it wraps. Clients such as Guzzle quote the whole URL in their messages, and a log that writes out the chain would otherwise carry a key sent in the query string. Until 0.0.8 the original was kept unmasked.
 
 ## Nothing is unserialized
 
