@@ -106,16 +106,16 @@ $export = $acme->await(new StartExport($filters), timeout: 300.0, interval: 2.0)
 
 A request the API answers straight away comes back as normal. Every monitor and result URI has to be under the base URI. At the timeout, `OperationTimeoutException` carries the monitor URI, so you can look again later: the operation may still finish.
 
-Not every API's asynchronous work is a 202 and a monitor. Some take a job, give you an ID, and leave you to look it up until a status field says it's finished: SerpApi's async searches work like this, read back from its Search Archive. There's no standard for it, so `poll()` takes the API's own words for "done" and, optionally, "failed":
+Not every API's asynchronous work is a 202 and a monitor. Some take a job, give you an ID, and leave you to look it up until a status field says it's finished. There's no standard for it, so `poll()` takes the API's own words for "done" and, optionally, "failed":
 
 ```php
-$id = $serpapi->send(new SubmitSearch($query))->id;
+$id = $acme->send(new SubmitReport($filters))->id;
 
-$result = $serpapi->poll(
-    new GetArchivedSearch($id),
-    done: fn (Response $response): bool => $response->get('search_metadata.status') === 'Success',
-    failed: fn (Response $response): ?ProblemDetails => $response->get('search_metadata.status') === 'Error'
-        ? new ProblemDetails(title: 'Search failed', detail: (string) $response->get('error'))
+$result = $acme->poll(
+    new GetReport($id),
+    done: fn (Response $response): bool => $response->get('status') === 'complete',
+    failed: fn (Response $response): ?ProblemDetails => $response->get('status') === 'failed'
+        ? new ProblemDetails(title: 'Report failed', detail: (string) $response->get('error'))
         : null,
     timeout: 120.0,
 );

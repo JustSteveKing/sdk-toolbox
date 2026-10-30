@@ -289,8 +289,7 @@ class Connector
      * check's result().
      *
      * For APIs whose asynchronous work isn't a 202 and a monitor, but a job
-     * you submit and then look up until a status field says it's finished:
-     * SerpApi's async searches, read back from its Search Archive, are one.
+     * you submit and then look up until a status field says it's finished.
      * There's no standard for this; it's a convention, so the API's own
      * words for "done" and "failed" are passed in. `$done` gets each
      * response and says whether it's finished. `$failed`, if given, reads

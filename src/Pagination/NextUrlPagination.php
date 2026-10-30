@@ -21,8 +21,8 @@ use Psr\Http\Message\UriFactoryInterface;
  * resolved against the request (RFC 3986 section 5.2), and the connector
  * refuses one outside the base URI before it's sent.
  *
- * Some APIs' next URLs drop options the first request sent (SerpApi's leave
- * out `no_cache` and `output`, for example), so the second page quietly
+ * Some APIs' next URLs drop options the first request sent, such as a
+ * format or a cache setting, so the second page quietly
  * answers a different question. `carry` names the query parameters to put
  * back: each one the request had and the next URL lacks is added, raw, as
  * the request sent it. A value the API wrote into the next URL is never
