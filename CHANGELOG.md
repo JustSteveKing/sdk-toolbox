@@ -4,6 +4,8 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 
 ## [Unreleased]
 
+## [0.0.8] - 2026-10-30
+
 A security fix: an API key sent as a query parameter could reach a log through a transport error's exception chain.
 
 ### Fixed
@@ -104,7 +106,8 @@ The first release.
 - Testing tools: a fake client, fake time and recorded fixtures.
 - An agent skill for building SDKs with the toolbox.
 
-[Unreleased]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.7...HEAD
+[Unreleased]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.8...HEAD
+[0.0.8]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.7...v0.0.8
 [0.0.7]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.4...v0.0.5
