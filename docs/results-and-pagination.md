@@ -89,7 +89,7 @@ A strategy works on the PSR-7 request: `first()` shapes the first one and `next(
 Some APIs' next URLs leave out options the first request sent, so the second page quietly answers a different question. `NextUrlPagination` puts back the parameters you name:
 
 ```php
-$acme->paginate(new Search($query), new NextUrlPagination('serpapi_pagination.next', carry: ['no_cache', 'output']));
+$acme->paginate(new Search($query), new NextUrlPagination('pagination.next', carry: ['format', 'fresh']));
 ```
 
 Each named parameter the request had and the next URL lacks is added as the request sent it. A value the API wrote into the next URL is never overridden, and credentials aren't carried: an authenticator such as `QueryKey` sets its own parameter on every page.

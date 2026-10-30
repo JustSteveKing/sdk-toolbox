@@ -31,7 +31,7 @@ use Psr\Http\Message\ResponseInterface;
  *   the recorded method and path; anything else throws, rather than
  *   quietly answering the wrong request. With `matchQuery: true` the
  *   query has to match too, in any order, for an API that answers every
- *   call at one path (`GET /search.json?engine=...`), where the path alone
+ *   call at one path (`GET /search?engine=...`), where the path alone
  *   can't tell one request from another. Parameters the Redactor masks,
  *   such as an API key, are left out of the comparison.
  */
