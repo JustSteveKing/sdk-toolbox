@@ -73,6 +73,32 @@ PHP's `http_build_query()` sends `true` as `1` and drops `false`, which most API
 
 Encoding is RFC 3986, so a space is `%20`. Anything else (an object, a resource) throws `InvalidRequestException`.
 
+### Lists
+
+There's no standard for a list in a query string, and APIs read them three ways. `ListFormat` says which:
+
+| `ListFormat` | `['expand' => ['customer', 'invoice']]` is sent as |
+|---|---|
+| `Indexed`, the default | `expand[0]=customer&expand[1]=invoice`, as PHP's `http_build_query()` writes it |
+| `Brackets` | `expand[]=customer&expand[]=invoice` |
+| `Repeated` | `expand=customer&expand=invoice` |
+
+Set it for every request's query on the connector, and for a form body on the body:
+
+```php
+parent::__construct(
+    baseUri: 'https://api.acme.test',
+    queryLists: ListFormat::Repeated,
+);
+
+new FormBody(['tags' => ['urgent', 'billing']], ListFormat::Brackets);
+```
+
+- **Only lists change,** arrays `array_is_list()` is true for. A keyed array is always `key[name]=value`, nested ones too: `['filter' => ['status' => 'open']]` is `filter[status]=open` in every format.
+- **The format applies at any depth,** so `['filter' => ['status' => ['open', 'closed']]]` is `filter[status][]=open&filter[status][]=closed` with `Brackets`, and `filter[status]=open&filter[status]=closed` with `Repeated`.
+- **A list item that is itself an array keeps its index,** `items[0][id]=1&items[1][id]=2`, because `items[][id]=1&items[][qty]=2` can't say whether that's one item or two.
+- **Everything else is as above:** booleans, enums and `null` items behave the same in every format, an empty list sends nothing, and brackets are percent-encoded as `%5B` and `%5D`, as they always were.
+
 ## Headers
 
 Every request gets `Accept: application/json, application/problem+json`, and a User-Agent of your SDK's name followed by `sdk-toolbox/<version> php/<version>`. Set defaults for every request on the connector:
@@ -92,7 +118,7 @@ A request's own `headers()` replace defaults of the same name. `$connector->with
 | Body | Content-Type | Notes |
 |---|---|---|
 | `new JsonBody($data)` | `application/json` | An empty array is sent as `{}`. Accepts arrays and `JsonSerializable` |
-| `new FormBody($fields)` | `application/x-www-form-urlencoded` | Encoded the same way as a query string |
+| `new FormBody($fields)` | `application/x-www-form-urlencoded` | Encoded the same way as a query string; pass a `ListFormat` for [lists](#lists) |
 | `new RawBody($stringOrStream, $type)` | whatever you say | For XML, CSV, binary uploads |
 | `new Multipart(...$parts)` | `multipart/form-data; boundary=...` | RFC 7578 |
 | `new MergePatch($patch)` or `MergePatch::diff($before, $after)` | `application/merge-patch+json` | RFC 7396 |

@@ -22,6 +22,7 @@ use JustSteveKing\SdkToolbox\Errors\StatusExceptions;
 use JustSteveKing\SdkToolbox\Errors\TransportException;
 use JustSteveKing\SdkToolbox\Errors\UnsafeUriException;
 use JustSteveKing\SdkToolbox\Http\BaseUri;
+use JustSteveKing\SdkToolbox\Http\ListFormat;
 use JustSteveKing\SdkToolbox\Http\QueryString;
 use JustSteveKing\SdkToolbox\Http\Response;
 use JustSteveKing\SdkToolbox\Http\Uri;
@@ -118,6 +119,7 @@ class Connector
      * @param  LoggerInterface|null  $logger  every event logged through PSR-3, redacted
      * @param  EventDispatcherInterface|null  $events  every event dispatched through PSR-14
      * @param  TraceContext|OpenTelemetrySpans|null  $tracing  trace context on every attempt, or an OpenTelemetry span for each
+     * @param  ListFormat  $queryLists  how lists in a request's query are written: `ids[0]=1` unless the API reads `ids[]=1` or `ids=1`
      */
     public function __construct(
         string $baseUri,
@@ -143,6 +145,7 @@ class Connector
         ?EventDispatcherInterface $events = null,
         private readonly TraceContext|OpenTelemetrySpans|null $tracing = null,
         private readonly string $idempotencyHeader = 'Idempotency-Key',
+        private readonly ListFormat $queryLists = ListFormat::Indexed,
     ) {
         $this->baseUri = new BaseUri($baseUri);
         $this->insecure = $insecure;
@@ -460,7 +463,7 @@ class Connector
         $uri = $this->baseUri->resolve($request->path());
 
         if ($request instanceof HasQuery) {
-            $query = QueryString::build($request->query());
+            $query = QueryString::build($request->query(), $this->queryLists);
             $uri = $uri->withQuery($query === '' ? null : $query);
         }
 

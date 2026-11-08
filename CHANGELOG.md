@@ -9,6 +9,7 @@ Feedback from SDKs built on the toolbox against real APIs. Everything already in
 ### Added
 
 - `sendUnauthenticated($uri, $request)` on the connector, for APIs that hand back a pre-signed URL on another host for an upload. It sends the request to that absolute `https` URI as given, with no authenticator, no connector headers and none of the connector's middleware, only the request's own headers and the User-Agent, and returns the `Response` as `response()` does. Plain `http` is allowed only on an `insecure` connector, and a relative URI or one with user info is refused. Retries, events, logging and tracing apply as they do for `send()`, with the URI redacted. Every other request is held to the base URI as before.
+- `ListFormat`, in `Http`, for APIs that read a list in a query or form as `expand[]=a&expand[]=b` (`Brackets`) or `expand=a&expand=b` (`Repeated`) rather than PHP's `expand[0]=a` (`Indexed`, the default). Set it with `queryLists` on the connector and as the second argument to `FormBody`, and `QueryString::build()` takes one. Only lists change: keyed arrays are `key[name]=value` as before, and booleans, enums and nulls encode as they did.
 
 ### Changed
 

@@ -47,6 +47,7 @@ arch('values are immutable')
     ->toBeReadonly()
     ->ignoring([
         'JustSteveKing\SdkToolbox\Http\Method',
+        'JustSteveKing\SdkToolbox\Http\ListFormat',
         'JustSteveKing\SdkToolbox\Http\QueryString',
         'JustSteveKing\SdkToolbox\Http\StructuredFields',
         'JustSteveKing\SdkToolbox\Http\Links',
