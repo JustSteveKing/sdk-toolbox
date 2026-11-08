@@ -182,7 +182,7 @@ Retries are on by default and only repeat what's safe:
 - a GET that hit a 503 is retried, for as long as `Retry-After` says;
 - a POST that may have landed isn't.
 
-Mark a POST `Idempotent` to send an Idempotency-Key and make it retryable. To wait for a rate limit to reset rather than collect 429s, give the connector a throttle:
+Mark a POST `Idempotent` to send an Idempotency-Key and make it retryable, in the header or, for an API that reads it there, a body field. To wait for a rate limit to reset rather than collect 429s, give the connector a throttle:
 
 ```php
 retry: RetryPolicy::standard()->withMaxAttempts(5),

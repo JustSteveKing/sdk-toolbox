@@ -6,6 +6,7 @@ namespace JustSteveKing\SdkToolbox\Bodies;
 
 use JustSteveKing\SdkToolbox\Http\ListFormat;
 use JustSteveKing\SdkToolbox\Http\QueryString;
+use NoDiscard;
 use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Http\Message\StreamInterface;
 
@@ -23,6 +24,15 @@ final readonly class FormBody implements Body
         private array $fields,
         private ListFormat $lists = ListFormat::Indexed,
     ) {}
+
+    /**
+     * The same body with one more field, replacing any of that name.
+     */
+    #[NoDiscard]
+    public function withField(string $name, mixed $value): self
+    {
+        return new self([...$this->fields, $name => $value], $this->lists);
+    }
 
     public function contentType(): string
     {

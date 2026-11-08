@@ -126,6 +126,8 @@ A request's own `headers()` replace defaults of the same name. `$connector->with
 
 A body's Content-Type is set for you. A request's `headers()` can still override it.
 
+`JsonBody` and `FormBody` have `withField($name, $value)`, which returns a copy with one more top-level field, replacing any of that name. A `JsonBody` holding a list refuses it with `InvalidRequestException`. The connector uses it to put an idempotency key in the body for APIs that read it there ([Reliability](reliability.md#idempotency-key)).
+
 ### Multipart
 
 ```php

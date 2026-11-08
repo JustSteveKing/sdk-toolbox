@@ -3,12 +3,16 @@
 declare(strict_types=1);
 
 use JustSteveKing\SdkToolbox\Bodies\Body;
+use JustSteveKing\SdkToolbox\Bodies\FormBody;
 use JustSteveKing\SdkToolbox\Bodies\JsonBody;
+use JustSteveKing\SdkToolbox\Bodies\Multipart;
+use JustSteveKing\SdkToolbox\Bodies\Part;
 use JustSteveKing\SdkToolbox\Bodies\RawBody;
 use JustSteveKing\SdkToolbox\Connector;
 use JustSteveKing\SdkToolbox\Errors\InvalidRequestException;
 use JustSteveKing\SdkToolbox\Errors\ServerException;
 use JustSteveKing\SdkToolbox\Errors\TooManyRequestsException;
+use JustSteveKing\SdkToolbox\Http\ListFormat;
 use JustSteveKing\SdkToolbox\Http\Method;
 use JustSteveKing\SdkToolbox\Http\Response;
 use JustSteveKing\SdkToolbox\Requests\HasBody;
@@ -276,4 +280,136 @@ it('can be turned off', function (): void {
 it('refuses a key that cannot go in a header', function (): void {
     expect(fn () => IdempotencyKey::Bare->header('has space'))->toThrow(InvalidRequestException::class)
         ->and(IdempotencyKey::Quoted->header('a"b'))->toBe('"a\"b"');
+});
+
+/**
+ * @return Request<Response>
+ */
+function keyedWithoutBody(): Request
+{
+    return new readonly class implements Idempotent, Request
+    {
+        public function method(): Method
+        {
+            return Method::Post;
+        }
+
+        public function path(): string
+        {
+            return '/charges/ch_1/capture';
+        }
+
+        public function idempotencyKey(): ?string
+        {
+            return null;
+        }
+
+        public function result(Response $response): Response
+        {
+            return $response;
+        }
+    };
+}
+
+function fieldConnector(FakeClient $http, FakeTime $time, string $field = 'dedupe_id'): Connector
+{
+    return new Connector('https://api.example.com', http: $http, clock: $time, sleeper: $time, idempotencyField: $field);
+}
+
+it('puts the key in a JSON body field, the same one on every retry, and sends no header', function (): void {
+    $http = new FakeClient(FakeResponse::empty(502), FakeResponse::empty(504), FakeResponse::json(['id' => 'ch_1'], 201));
+
+    $response = fieldConnector($http, new FakeTime)->send(post(new JsonBody(['amount' => 500]), idempotent: true));
+
+    $bodies = array_map(fn ($r): array => json_decode((string) $r->getBody(), true), $http->sent());
+
+    expect($response->status())->toBe(201)
+        ->and($bodies)->toHaveCount(3)
+        ->and(array_unique(array_column($bodies, 'dedupe_id')))->toHaveCount(1)
+        ->and($bodies[0]['amount'])->toBe(500)
+        ->and($bodies[0]['dedupe_id'])->toMatch('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/');
+    $http->assertNotSent(fn ($r): bool => $r->hasHeader('Idempotency-Key'));
+});
+
+it('puts the key in a form body field, and retries on it', function (): void {
+    $http = new FakeClient(FakeResponse::empty(502), FakeResponse::empty(201));
+
+    fieldConnector($http, new FakeTime)->send(post(new FormBody(['amount' => 500]), idempotent: true));
+
+    $bodies = array_map(fn ($r): string => (string) $r->getBody(), $http->sent());
+
+    expect($bodies)->toHaveCount(2)
+        ->and(array_unique($bodies))->toHaveCount(1)
+        ->and($bodies[0])->toMatch('/^amount=500&dedupe_id=[0-9a-f-]{36}$/')
+        ->and($http->last()?->hasHeader('Idempotency-Key'))->toBeFalse();
+});
+
+it('uses the request\'s own key in the field, raw, replacing any value the body set', function (): void {
+    $http = new FakeClient(FakeResponse::empty(201));
+    $connector = new Connector('https://api.example.com', http: $http, idempotencyKeys: IdempotencyKey::Quoted, idempotencyField: 'dedupe_id');
+
+    $connector->send(post(new JsonBody(['amount' => 500, 'dedupe_id' => 'stale']), idempotent: true, key: 'order-42'));
+
+    expect(json_decode((string) $http->last()?->getBody(), true))->toBe(['amount' => 500, 'dedupe_id' => 'order-42']);
+});
+
+it('gives each send its own key in the field', function (): void {
+    $http = new FakeClient(FakeResponse::empty(201), FakeResponse::empty(201));
+    $connector = fieldConnector($http, new FakeTime);
+
+    $connector->send(post(new JsonBody([]), idempotent: true));
+    $connector->send(post(new JsonBody([]), idempotent: true));
+
+    expect((string) $http->sent()[0]->getBody())->not->toBe((string) $http->sent()[1]->getBody());
+});
+
+it('keeps the field in step when the retry policy is swapped', function (): void {
+    $http = new FakeClient(FakeResponse::empty(502), FakeResponse::empty(201));
+    $time = new FakeTime;
+    $connector = fieldConnector($http, $time)->withRetry(RetryPolicy::standard()->withMaxAttempts(2));
+
+    $connector->send(post(new JsonBody([]), idempotent: true));
+
+    $http->assertSentCount(2);
+});
+
+it('refuses a body the key cannot go in', function (Request $request): void {
+    $http = new FakeClient(FakeResponse::empty(201));
+
+    expect(fn () => fieldConnector($http, new FakeTime)->send($request))->toThrow(InvalidRequestException::class);
+    $http->assertNothingSent();
+})->with([
+    'raw' => fn (): Request => post(new RawBody('<charge/>', 'application/xml'), idempotent: true),
+    'multipart' => fn (): Request => post(new Multipart(Part::field('amount', '500')), idempotent: true),
+    'a JSON list' => fn (): Request => post(new JsonBody([1, 2]), idempotent: true),
+    'no body' => fn (): Request => keyedWithoutBody(),
+]);
+
+it('leaves requests that aren\'t Idempotent alone when a field is set', function (): void {
+    $http = new FakeClient(FakeResponse::empty(201), FakeResponse::empty(502));
+    $connector = fieldConnector($http, new FakeTime);
+
+    $connector->send(post(new RawBody('<charge/>', 'application/xml')));
+
+    expect((string) $http->last()?->getBody())->toBe('<charge/>')
+        ->and(fn () => $connector->send(post(new JsonBody(['amount' => 1]))))->toThrow(ServerException::class);
+    $http->assertSentCount(2);
+});
+
+it('refuses an empty field name', function (): void {
+    expect(fn () => new Connector('https://api.example.com', http: new FakeClient, idempotencyField: ''))->toThrow(InvalidRequestException::class);
+});
+
+it('adds a field to a JSON body built from a JsonSerializable, and to a form body keeping its list format', function (): void {
+    $order = new class implements JsonSerializable
+    {
+        public function jsonSerialize(): array
+        {
+            return ['amount' => 500];
+        }
+    };
+    $streams = new Nyholm\Psr7\Factory\Psr17Factory;
+
+    expect((string) (new JsonBody($order))->withField('dedupe_id', 'k')->stream($streams))->toBe('{"amount":500,"dedupe_id":"k"}')
+        ->and((string) (new FormBody(['ids' => [1]], ListFormat::Repeated))->withField('dedupe_id', 'k')->stream($streams))->toBe('ids=1&dedupe_id=k');
 });

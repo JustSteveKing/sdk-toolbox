@@ -56,6 +56,6 @@ What the toolbox implements, and how far. "Experimental" marks a draft that is s
 - `retry-after-ms`;
 - cursor, offset, page and Stripe-style `starting_after` pagination in response bodies (with a `has_more` flag, or ending on a short page), and a next-page URL in the body, treated like a `Link` header;
 - HMAC webhook signatures over a timestamp and the body, in Stripe's, Slack's and Ghost's dialects;
-- bare (unquoted) Idempotency-Key values, and idempotency keys under another header name, such as `X-Idempotency-Key`;
+- bare (unquoted) Idempotency-Key values, idempotency keys under another header name, such as `X-Idempotency-Key`, and in a JSON or form body field;
 - lists in a query string or form body as `ids[0]=1`, `ids[]=1` or `ids=1`, whichever an API reads (`ListFormat`);
 - asynchronous work you submit and then look up until a status field says it's finished, which `poll()` checks with the API's own words for done and failed.

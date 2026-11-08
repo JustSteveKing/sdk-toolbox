@@ -32,7 +32,9 @@ use Random\Randomizer;
  * "Carrying an Idempotency-Key" means the header `idempotencyHeader`
  * names: the draft's `Idempotency-Key` unless the API uses another, such
  * as `X-Idempotency-Key`. A connector sets it on its policy to match the
- * header it sends.
+ * header it sends. An API that takes the key in a body field instead
+ * names it in `idempotencyField`, and a JSON or form body with that
+ * top-level field counts as keyed.
  * - Nothing else is retried: not 400, 401, 404 or 422, which won't change
  *   on their own.
  *
@@ -59,6 +61,7 @@ final readonly class RetryPolicy implements RetryStrategy
      * @param  float  $maxRetryAfter  the longest Retry-After worth waiting for
      * @param  float|null  $deadline  seconds the whole sequence may take, waits included
      * @param  string  $idempotencyHeader  the header that marks a request as safe to repeat
+     * @param  string|null  $idempotencyField  a JSON or form body field that marks it so, for an API that takes the key in the body
      */
     public function __construct(
         public int $maxAttempts = 3,
@@ -69,6 +72,7 @@ final readonly class RetryPolicy implements RetryStrategy
         public ?float $deadline = null,
         private Randomizer $random = new Randomizer,
         public string $idempotencyHeader = 'Idempotency-Key',
+        public ?string $idempotencyField = null,
     ) {
         if ($maxAttempts < 1) {
             throw new InvalidRequestException('A retry policy needs at least one attempt.');
@@ -93,6 +97,12 @@ final readonly class RetryPolicy implements RetryStrategy
     public function withIdempotencyHeader(string $header): self
     {
         return $this->copy(idempotencyHeader: $header);
+    }
+
+    #[NoDiscard]
+    public function withIdempotencyField(?string $field): self
+    {
+        return $this->copy(idempotencyField: $field, keepIdempotencyField: false);
     }
 
     #[NoDiscard]
@@ -142,7 +152,7 @@ final readonly class RetryPolicy implements RetryStrategy
 
     private function retryable(RequestInterface $request, ?ResponseInterface $response, ?ClientExceptionInterface $error): bool
     {
-        $keyed = $request->hasHeader($this->idempotencyHeader);
+        $keyed = $request->hasHeader($this->idempotencyHeader) || ($this->idempotencyField !== null && self::bodyHas($request, $this->idempotencyField));
         $repeatable = $keyed || (Method::tryFrom(strtoupper($request->getMethod()))?->isIdempotent() ?? false);
 
         if ($response === null) {
@@ -165,6 +175,8 @@ final readonly class RetryPolicy implements RetryStrategy
         ?float $deadline = null,
         bool $keepDeadline = true,
         ?string $idempotencyHeader = null,
+        ?string $idempotencyField = null,
+        bool $keepIdempotencyField = true,
     ): self {
         return new self(
             maxAttempts: $maxAttempts ?? $this->maxAttempts,
@@ -175,7 +187,40 @@ final readonly class RetryPolicy implements RetryStrategy
             deadline: $keepDeadline ? $this->deadline : $deadline,
             random: $this->random,
             idempotencyHeader: $idempotencyHeader ?? $this->idempotencyHeader,
+            idempotencyField: $keepIdempotencyField ? $this->idempotencyField : $idempotencyField,
         );
+    }
+
+    /**
+     * Whether a JSON or form body has a top-level field. Only a body that
+     * can be rewound is read, and only one that could be retried anyway.
+     */
+    private static function bodyHas(RequestInterface $request, string $field): bool
+    {
+        $body = $request->getBody();
+
+        if (! $body->isSeekable()) {
+            return false;
+        }
+
+        $type = strtolower($request->getHeaderLine('Content-Type'));
+        $content = (string) $body;
+
+        if (str_contains($type, 'json')) {
+            $data = json_decode($content, true);
+
+            return is_array($data) && array_key_exists($field, $data);
+        }
+
+        if (str_starts_with($type, 'application/x-www-form-urlencoded')) {
+            foreach (explode('&', $content) as $pair) {
+                if (rawurldecode(explode('=', $pair, 2)[0]) === $field) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private function backoff(int $attempt): float

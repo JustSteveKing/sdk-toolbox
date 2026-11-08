@@ -28,6 +28,7 @@ When the API supports Idempotency-Key, implement `Requests\Idempotent` on its PO
 
 - **Format:** pass `idempotencyKeys: Retries\IdempotencyKey::Bare` to the connector for APIs, Stripe among them, that want an unquoted key.
 - **Header:** pass `idempotencyHeader: 'X-Idempotency-Key'` for an API that names it differently; the connector keeps its `RetryPolicy` in step.
+- **Body field:** pass `idempotencyField: 'dedupe_id'` for an API that takes the key in the body. The raw key goes in that field of a `JsonBody` or `FormBody`, no header is sent, and retries keep the same key; any other body, or none, throws `Errors\InvalidRequestException`.
 - **Status:** experimental, since the draft is still changing.
 
 ## Rate limits

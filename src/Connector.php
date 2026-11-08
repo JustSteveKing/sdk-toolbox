@@ -9,6 +9,9 @@ use Http\Discovery\Psr17FactoryDiscovery;
 use Http\Discovery\Psr18ClientDiscovery;
 use JustSteveKing\SdkToolbox\Auth\Authenticate;
 use JustSteveKing\SdkToolbox\Auth\Authenticator;
+use JustSteveKing\SdkToolbox\Bodies\Body;
+use JustSteveKing\SdkToolbox\Bodies\FormBody;
+use JustSteveKing\SdkToolbox\Bodies\JsonBody;
 use JustSteveKing\SdkToolbox\Caching\HttpCache;
 use JustSteveKing\SdkToolbox\Deprecation\Deprecations;
 use JustSteveKing\SdkToolbox\Errors\ExceptionMapper;
@@ -119,6 +122,7 @@ class Connector
      * @param  LoggerInterface|null  $logger  every event logged through PSR-3, redacted
      * @param  EventDispatcherInterface|null  $events  every event dispatched through PSR-14
      * @param  TraceContext|OpenTelemetrySpans|null  $tracing  trace context on every attempt, or an OpenTelemetry span for each
+     * @param  string|null  $idempotencyField  a top-level JSON or form body field to put the key in instead of the header, for an API that reads it there
      * @param  ListFormat  $queryLists  how lists in a request's query are written: `ids[0]=1` unless the API reads `ids[]=1` or `ids=1`
      */
     public function __construct(
@@ -146,6 +150,7 @@ class Connector
         private readonly TraceContext|OpenTelemetrySpans|null $tracing = null,
         private readonly string $idempotencyHeader = 'Idempotency-Key',
         private readonly ListFormat $queryLists = ListFormat::Indexed,
+        private readonly ?string $idempotencyField = null,
     ) {
         $this->baseUri = new BaseUri($baseUri);
         $this->insecure = $insecure;
@@ -153,6 +158,10 @@ class Connector
         // A field name is a token (RFC 9110 section 5.1).
         if (preg_match('/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/', $idempotencyHeader) !== 1) {
             throw new InvalidRequestException("[{$idempotencyHeader}] isn't a valid header name.");
+        }
+
+        if ($idempotencyField === '') {
+            throw new InvalidRequestException('An idempotency field needs a name.');
         }
 
         $this->retry = $this->keyedBy($retry);
@@ -499,13 +508,21 @@ class Connector
         }
 
         // One key per send(), kept by every retry of it: the request below is
-        // built once and the retry middleware resends this same object.
-        if ($request instanceof Idempotent) {
-            $headers[$this->idempotencyHeader] = $this->idempotencyKeys->header($request->idempotencyKey() ?? IdempotencyKey::generate());
+        // built once and the retry middleware resends this same object, body
+        // stream included.
+        $key = $request instanceof Idempotent ? ($request->idempotencyKey() ?? IdempotencyKey::generate()) : null;
+
+        if ($key !== null && $this->idempotencyField === null) {
+            $headers[$this->idempotencyHeader] = $this->idempotencyKeys->header($key);
+        }
+
+        if ($key !== null && $this->idempotencyField !== null && ! $request instanceof HasBody) {
+            throw new InvalidRequestException("The idempotency key goes in the [{$this->idempotencyField}] body field, and this request has no body. Give it a JsonBody or a FormBody.");
         }
 
         if ($request instanceof HasBody) {
             $body = $request->body();
+            $body = $key !== null && $this->idempotencyField !== null ? $this->keyed($body, $this->idempotencyField, $key) : $body;
             $psr = $psr->withBody($body->stream($this->streams));
             $headers = ['Content-Type' => $body->contentType(), ...$headers];
         }
@@ -515,6 +532,19 @@ class Connector
         }
 
         return $psr;
+    }
+
+    /**
+     * A body with the idempotency key in a field. Only JSON and form bodies
+     * have fields to put it in; raw bytes and multipart don't, and guessing
+     * would send a request the API can't deduplicate.
+     */
+    private function keyed(Body $body, string $field, string $key): Body
+    {
+        return match (true) {
+            $body instanceof JsonBody, $body instanceof FormBody => $body->withField($field, $key),
+            default => throw new InvalidRequestException(sprintf('The idempotency key goes in the [%s] body field, which needs a JsonBody or a FormBody; this request sends a %s.', $field, $body::class)),
+        };
     }
 
     #[NoDiscard]
@@ -536,13 +566,22 @@ class Connector
     }
 
     /**
-     * The connector's own retry policy has to recognise the header it sends
-     * keys in. A custom RetryStrategy is left alone; it reads the request.
+     * The connector's own retry policy has to recognise the header, or the
+     * body field, it sends keys in. A custom RetryStrategy is left alone; it
+     * reads the request.
      */
     private function keyedBy(RetryStrategy $retry): RetryStrategy
     {
-        return $retry instanceof RetryPolicy && $retry->idempotencyHeader !== $this->idempotencyHeader
-            ? $retry->withIdempotencyHeader($this->idempotencyHeader)
+        if (! $retry instanceof RetryPolicy) {
+            return $retry;
+        }
+
+        if ($retry->idempotencyHeader !== $this->idempotencyHeader) {
+            $retry = $retry->withIdempotencyHeader($this->idempotencyHeader);
+        }
+
+        return $retry->idempotencyField !== $this->idempotencyField
+            ? $retry->withIdempotencyField($this->idempotencyField)
             : $retry;
     }
 
