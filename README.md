@@ -171,7 +171,7 @@ $acme->paginate(new ListMembers, new CursorPagination('meta.next_cursor'))
 $response->collect('data')->pluck('name', 'id');     // untyped data, as a collection
 ```
 
-Pagination follows `Link` headers, a next-page URL in the body, cursors, offsets, page numbers or Stripe's `starting_after`. A paginator is a lazy collection, with `map()`, `filter()`, `first()` and the other collection methods you'd expect, and nothing to install.
+Pagination follows `Link` headers, a next-page URL in the body, cursors, offsets, page numbers or Stripe's `starting_after`, with a `has_more` flag or ending on a short page. A paginator is a lazy collection, with `map()`, `filter()`, `first()` and the other collection methods you'd expect, and nothing to install.
 
 More in [Results and pagination](docs/results-and-pagination.md).
 

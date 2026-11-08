@@ -46,6 +46,7 @@ Expose it from a resource as `public function all(): Paginator` (`@return Pagina
 | returns the next page's URL in the body (`"next": "https://..."`) | `Pagination\NextUrlPagination('path.to.next')`, with `carry: ['param']` for options the next URL drops |
 | returns a cursor in the body, wants it as `?cursor=` | `Pagination\CursorPagination('path.to.cursor', parameter: 'cursor')` |
 | returns `has_more` and pages by `starting_after` | `Pagination\StartingAfterPagination` |
+| pages by `starting_after` with no `has_more`; a short page is the last | `new Pagination\StartingAfterPagination(hasMoreAt: null, limit: 100)` |
 | takes `offset` and `limit` | `Pagination\OffsetPagination(limit: 100)` |
 | takes `page` | `Pagination\PagePagination(perPage: 50, lastPageAt: 'meta.last_page')` |
 

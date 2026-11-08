@@ -87,11 +87,24 @@ $owner = $acme->paginate(new ListMembers, new CursorPagination('meta.next_cursor
 | `new LinkPagination` | sends `Link: <...>; rel="next"` (RFC 8288), as GitHub does |
 | `new NextUrlPagination('next')` | puts the next page's URL in the body, as Django REST Framework and Packagist's search do; relative URLs resolve against the request |
 | `new CursorPagination('meta.next_cursor', parameter: 'cursor')` | puts a cursor in the body and wants it back as a query parameter |
-| `new StartingAfterPagination` | says `has_more` and pages after the last item's ID, as Stripe does |
+| `new StartingAfterPagination` | says `has_more` and pages after the last item's ID, as Stripe does; with `hasMoreAt: null` and a `limit`, one that sends no flag and ends on a short page |
 | `new OffsetPagination(limit: 100)` | takes `offset` and `limit`; a short page is the last |
 | `new PagePagination(lastPageAt: 'meta.last_page')` | takes `page`; stops on an empty or short page, or at the last page the body names |
 
 A strategy works on the PSR-7 request: `first()` shapes the first one and `next()` derives the next, so request classes never need to know they're paginated. Implement `Pagination` for an API that does something else.
+
+Some APIs page after the last item's ID but send no "more" flag, and a page shorter than the limit is the last. Tell `StartingAfterPagination` there's no flag, and what the limit is:
+
+```php
+$acme->paginate(new ListEvents, new StartingAfterPagination(hasMoreAt: null, limit: 100));
+```
+
+- **The first request sends the limit,** as `limit=100`, and every next page keeps it. Name the parameter with `limitParameter`, or pass `limitParameter: null` when the limit is the API's own page size and isn't sent.
+- **Paging stops on a page shorter than the limit, or an empty one,** so it never asks past the end: a full last page costs one request that comes back empty.
+- **Without a limit** it can only stop on an empty page.
+- **A limit below one** is refused with `InvalidRequestException`, as `OffsetPagination` refuses one.
+
+With a flag, `limit` is optional and only sent; the flag alone decides when to stop, as before.
 
 Some APIs' next URLs leave out options the first request sent, so the second page quietly answers a different question. `NextUrlPagination` puts back the parameters you name:
 
