@@ -124,8 +124,10 @@ it('gets a project', function (): void {
 ### Requests and bodies
 
 - **Request extras:** a request implements `HasQuery`, `HasHeaders` or `HasBody` for what it needs.
+- **Lists** in queries and forms go as the API reads them: `ids[0]=1`, `ids[]=1` or `ids=1`.
 - **Bodies:** JSON, form, streamed multipart, JSON Merge Patch (with `MergePatch::diff($before, $after)`) and JSON Patch.
 - **Paths** are appended to the base URI and can't escape it, so a caller's input can't send a request, or its credentials, to another host.
+- **Uploads to a pre-signed URL** on another host go through `sendUnauthenticated()`, which sends the request there and nothing of the API's: no credentials, connector headers or middleware.
 
 More in [Requests and bodies](docs/requests-and-bodies.md).
 
@@ -149,7 +151,7 @@ More in [Errors](docs/errors.md).
 | OAuth 2.0, for a CLI | the device flow |
 | OAuth 2.0, registering at runtime | `ClientRegistration` (RFC 7591) |
 
-Credentials don't go over plain HTTP unless you say so. Tokens refresh once, even across processes.
+Credentials don't go over plain HTTP unless you say so. Tokens refresh once, even across processes, and can be revoked at sign-out (RFC 7009).
 
 More in [Authentication](docs/authentication.md).
 
@@ -169,7 +171,7 @@ $acme->paginate(new ListMembers, new CursorPagination('meta.next_cursor'))
 $response->collect('data')->pluck('name', 'id');     // untyped data, as a collection
 ```
 
-Pagination follows `Link` headers, a next-page URL in the body, cursors, offsets, page numbers or Stripe's `starting_after`. A paginator is a lazy collection, with `map()`, `filter()`, `first()` and the other collection methods you'd expect, and nothing to install.
+Pagination follows `Link` headers, a next-page URL in the body, cursors, offsets, page numbers or Stripe's `starting_after`, with a `has_more` flag or ending on a short page. A paginator is a lazy collection, with `map()`, `filter()`, `first()` and the other collection methods you'd expect, and nothing to install.
 
 More in [Results and pagination](docs/results-and-pagination.md).
 
@@ -180,7 +182,7 @@ Retries are on by default and only repeat what's safe:
 - a GET that hit a 503 is retried, for as long as `Retry-After` says;
 - a POST that may have landed isn't.
 
-Mark a POST `Idempotent` to send an Idempotency-Key and make it retryable. To wait for a rate limit to reset rather than collect 429s, give the connector a throttle:
+Mark a POST `Idempotent` to send an Idempotency-Key and make it retryable, in the header or, for an API that reads it there, a body field. To wait for a rate limit to reset rather than collect 429s, give the connector a throttle:
 
 ```php
 retry: RetryPolicy::standard()->withMaxAttempts(5),

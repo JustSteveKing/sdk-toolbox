@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use JustSteveKing\SdkToolbox\Auth\QueryKey;
 use JustSteveKing\SdkToolbox\Connector;
+use JustSteveKing\SdkToolbox\Errors\InvalidRequestException;
 use JustSteveKing\SdkToolbox\Errors\NotFoundException;
 use JustSteveKing\SdkToolbox\Errors\PaginationException;
 use JustSteveKing\SdkToolbox\Errors\UnsafeUriException;
@@ -203,6 +204,65 @@ it('pages like Stripe, starting after the last item', function (): void {
 
     expect((new Acme('t', $http))->paginate(new ListMembers, new StartingAfterPagination)->all())->toHaveCount(3)
         ->and(queries($http->sent()))->toBe(['', 'starting_after=b']);
+});
+
+it('keeps the has_more path as it was, and stops on has_more false even after a full page', function (): void {
+    $http = new FakeClient(
+        FakeResponse::json(membersPage(['a', 'b'], ['has_more' => true])),
+        FakeResponse::json(membersPage(['c', 'd'], ['has_more' => false])),
+    );
+
+    expect((new Acme('t', $http))->paginate(new ListMembers, new StartingAfterPagination(limit: 2))->all())->toHaveCount(4)
+        ->and(queries($http->sent()))->toBe(['limit=2', 'limit=2&starting_after=b']);
+});
+
+it('pages after the last ID with no more flag, and stops on a short page', function (): void {
+    $http = new FakeClient(
+        FakeResponse::json(membersPage(['a', 'b'])),
+        FakeResponse::json(membersPage(['c', 'd'])),
+        FakeResponse::json(membersPage(['e'])),
+    );
+
+    $ids = array_map(fn (Member $m): string => $m->id, (new Acme('t', $http))->paginate(new ListMembers, new StartingAfterPagination(hasMoreAt: null, limit: 2))->all());
+
+    expect($ids)->toBe(['a', 'b', 'c', 'd', 'e'])
+        ->and(queries($http->sent()))->toBe(['limit=2', 'limit=2&starting_after=b', 'limit=2&starting_after=d']);
+    $http->assertQueueEmpty();
+});
+
+it('stops on an empty page when the last full page was the end', function (): void {
+    $http = new FakeClient(
+        FakeResponse::json(membersPage(['a', 'b'])),
+        FakeResponse::json(membersPage([])),
+    );
+
+    expect((new Acme('t', $http))->paginate(new ListMembers, new StartingAfterPagination(hasMoreAt: null, limit: 2))->all())->toHaveCount(2);
+    $http->assertSentCount(2);
+});
+
+it('never asks past a short first page', function (): void {
+    $http = new FakeClient(FakeResponse::json(membersPage(['a'])), FakeResponse::json(membersPage(['never'])));
+
+    expect((new Acme('t', $http))->paginate(new ListMembers, new StartingAfterPagination(hasMoreAt: null, limit: 25, limitParameter: 'per_page'))->all())->toHaveCount(1)
+        ->and(queries($http->sent()))->toBe(['per_page=25']);
+});
+
+it('pages after the last ID with an implicit limit, or none, without sending one', function (): void {
+    $http = new FakeClient(
+        FakeResponse::json(membersPage(['a', 'b'])),
+        FakeResponse::json(membersPage(['c'])),
+        FakeResponse::json(membersPage(['d'])),
+        FakeResponse::json(membersPage([])),
+    );
+    $acme = new Acme('t', $http);
+
+    expect($acme->paginate(new ListMembers, new StartingAfterPagination(hasMoreAt: null, limit: 2, limitParameter: null))->all())->toHaveCount(3)
+        ->and($acme->paginate(new ListMembers, new StartingAfterPagination(hasMoreAt: null))->all())->toHaveCount(1)
+        ->and(queries($http->sent()))->toBe(['', 'starting_after=b', '', 'starting_after=d']);
+});
+
+it('refuses a starting_after limit below one', function (): void {
+    expect(fn () => new StartingAfterPagination(hasMoreAt: null, limit: 0))->toThrow(InvalidRequestException::class);
 });
 
 it('pages by offset and stops on a short page', function (): void {

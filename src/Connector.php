@@ -9,6 +9,9 @@ use Http\Discovery\Psr17FactoryDiscovery;
 use Http\Discovery\Psr18ClientDiscovery;
 use JustSteveKing\SdkToolbox\Auth\Authenticate;
 use JustSteveKing\SdkToolbox\Auth\Authenticator;
+use JustSteveKing\SdkToolbox\Bodies\Body;
+use JustSteveKing\SdkToolbox\Bodies\FormBody;
+use JustSteveKing\SdkToolbox\Bodies\JsonBody;
 use JustSteveKing\SdkToolbox\Caching\HttpCache;
 use JustSteveKing\SdkToolbox\Deprecation\Deprecations;
 use JustSteveKing\SdkToolbox\Errors\ExceptionMapper;
@@ -22,6 +25,7 @@ use JustSteveKing\SdkToolbox\Errors\StatusExceptions;
 use JustSteveKing\SdkToolbox\Errors\TransportException;
 use JustSteveKing\SdkToolbox\Errors\UnsafeUriException;
 use JustSteveKing\SdkToolbox\Http\BaseUri;
+use JustSteveKing\SdkToolbox\Http\ListFormat;
 use JustSteveKing\SdkToolbox\Http\QueryString;
 use JustSteveKing\SdkToolbox\Http\Response;
 use JustSteveKing\SdkToolbox\Http\Uri;
@@ -82,7 +86,7 @@ use Psr\SimpleCache\CacheInterface;
  */
 class Connector
 {
-    public const string VERSION = '0.0.8';
+    public const string VERSION = '0.0.9';
 
     private readonly BaseUri $baseUri;
 
@@ -100,6 +104,8 @@ class Connector
 
     private readonly Telemetry $telemetry;
 
+    private readonly bool $insecure;
+
     /**
      * @param  string  $baseUri  every request path is appended to this, and can't leave it
      * @param  list<Middleware>  $middleware  run in order, before authentication
@@ -116,6 +122,8 @@ class Connector
      * @param  LoggerInterface|null  $logger  every event logged through PSR-3, redacted
      * @param  EventDispatcherInterface|null  $events  every event dispatched through PSR-14
      * @param  TraceContext|OpenTelemetrySpans|null  $tracing  trace context on every attempt, or an OpenTelemetry span for each
+     * @param  string|null  $idempotencyField  a top-level JSON or form body field to put the key in instead of the header, for an API that reads it there
+     * @param  ListFormat  $queryLists  how lists in a request's query are written: `ids[0]=1` unless the API reads `ids[]=1` or `ids=1`
      */
     public function __construct(
         string $baseUri,
@@ -141,12 +149,19 @@ class Connector
         ?EventDispatcherInterface $events = null,
         private readonly TraceContext|OpenTelemetrySpans|null $tracing = null,
         private readonly string $idempotencyHeader = 'Idempotency-Key',
+        private readonly ListFormat $queryLists = ListFormat::Indexed,
+        private readonly ?string $idempotencyField = null,
     ) {
         $this->baseUri = new BaseUri($baseUri);
+        $this->insecure = $insecure;
 
         // A field name is a token (RFC 9110 section 5.1).
         if (preg_match('/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/', $idempotencyHeader) !== 1) {
             throw new InvalidRequestException("[{$idempotencyHeader}] isn't a valid header name.");
+        }
+
+        if ($idempotencyField === '') {
+            throw new InvalidRequestException('An idempotency field needs a name.');
         }
 
         $this->retry = $this->keyedBy($retry);
@@ -397,6 +412,56 @@ class Connector
     }
 
     /**
+     * Sends a request to an absolute URI outside the base URI, with no
+     * credentials, and returns the response as it came, error statuses
+     * included, as response() does.
+     *
+     * For an upload to a pre-signed URL on another host, which an API hands
+     * back for object storage: the URL carries its own signature, and the
+     * API's credentials must not go with it. So nothing the connector adds
+     * for its API is sent: no authenticator, no connector headers (which
+     * may carry a key), no middleware (where an SDK adds its API's own
+     * headers and signatures), and no throttle, deprecation watcher or
+     * cache, which are about the API. The request's own headers and body
+     * go, with the connector's User-Agent. Retries, events, logging and
+     * tracing apply as they do to send(), with the URI redacted.
+     *
+     * The URI has to be absolute and `https`, or `http` on a connector
+     * built `insecure`, without user info. The request's path() isn't
+     * used, and it can't add a query: a pre-signed URL's query is what its
+     * signature covers, so it's sent exactly as given.
+     *
+     * @param  Request<mixed>  $request
+     *
+     * @throws UnsafeUriException for a relative URI, a plain `http` one, or one with user info
+     * @throws InvalidRequestException when the request has a query of its own
+     * @throws TransportException when no response came back
+     */
+    public function sendUnauthenticated(string $uri, Request $request): Response
+    {
+        $target = Uri::parse($uri);
+        $shown = $this->redactor->uri($uri);
+
+        if ($target === null || $target->getScheme() === null || $target->getHost() === null || $target->getHost() === '') {
+            throw new UnsafeUriException("An unauthenticated request needs an absolute URI: [{$shown}].");
+        }
+
+        if ($target->getScheme() !== 'https' && ! ($target->getScheme() === 'http' && $this->insecure)) {
+            throw new UnsafeUriException("Refusing to send to [{$shown}] without TLS. Pass `insecure: true` to the connector if that's intended, for a local server.");
+        }
+
+        if ($target->getUserInfo() !== null) {
+            throw new UnsafeUriException("An unauthenticated request can't carry credentials in its URI: [{$shown}].");
+        }
+
+        if ($request instanceof HasQuery && QueryString::build($request->query()) !== '') {
+            throw new InvalidRequestException("An unauthenticated request is sent to its URI exactly as given; put any query in the URI: [{$shown}].");
+        }
+
+        return $this->dispatch($this->build($request, $target->toRawString(), ['User-Agent' => $this->userAgentString()]), unauthenticated: true);
+    }
+
+    /**
      * The PSR-7 request a Request becomes, before middleware and
      * authentication.
      *
@@ -407,16 +472,30 @@ class Connector
         $uri = $this->baseUri->resolve($request->path());
 
         if ($request instanceof HasQuery) {
-            $query = QueryString::build($request->query());
+            $query = QueryString::build($request->query(), $this->queryLists);
             $uri = $uri->withQuery($query === '' ? null : $query);
         }
 
-        $psr = $this->requests->createRequest($request->method()->value, $uri->toRawString());
-
-        $headers = [
+        return $this->build($request, $uri->toRawString(), [
             'Accept' => 'application/json, application/problem+json',
             'User-Agent' => $this->userAgentString(),
             ...$this->headers,
+        ]);
+    }
+
+    /**
+     * A Request as PSR-7 at a URI already decided, over the given default
+     * headers.
+     *
+     * @param  Request<mixed>  $request
+     * @param  array<string, string|list<string>>  $defaults
+     */
+    private function build(Request $request, string $uri, array $defaults): RequestInterface
+    {
+        $psr = $this->requests->createRequest($request->method()->value, $uri);
+
+        $headers = [
+            ...$defaults,
             ...($request instanceof HasHeaders ? $request->headers() : []),
         ];
 
@@ -429,13 +508,21 @@ class Connector
         }
 
         // One key per send(), kept by every retry of it: the request below is
-        // built once and the retry middleware resends this same object.
-        if ($request instanceof Idempotent) {
-            $headers[$this->idempotencyHeader] = $this->idempotencyKeys->header($request->idempotencyKey() ?? IdempotencyKey::generate());
+        // built once and the retry middleware resends this same object, body
+        // stream included.
+        $key = $request instanceof Idempotent ? ($request->idempotencyKey() ?? IdempotencyKey::generate()) : null;
+
+        if ($key !== null && $this->idempotencyField === null) {
+            $headers[$this->idempotencyHeader] = $this->idempotencyKeys->header($key);
+        }
+
+        if ($key !== null && $this->idempotencyField !== null && ! $request instanceof HasBody) {
+            throw new InvalidRequestException("The idempotency key goes in the [{$this->idempotencyField}] body field, and this request has no body. Give it a JsonBody or a FormBody.");
         }
 
         if ($request instanceof HasBody) {
             $body = $request->body();
+            $body = $key !== null && $this->idempotencyField !== null ? $this->keyed($body, $this->idempotencyField, $key) : $body;
             $psr = $psr->withBody($body->stream($this->streams));
             $headers = ['Content-Type' => $body->contentType(), ...$headers];
         }
@@ -445,6 +532,19 @@ class Connector
         }
 
         return $psr;
+    }
+
+    /**
+     * A body with the idempotency key in a field. Only JSON and form bodies
+     * have fields to put it in; raw bytes and multipart don't, and guessing
+     * would send a request the API can't deduplicate.
+     */
+    private function keyed(Body $body, string $field, string $key): Body
+    {
+        return match (true) {
+            $body instanceof JsonBody, $body instanceof FormBody => $body->withField($field, $key),
+            default => throw new InvalidRequestException(sprintf('The idempotency key goes in the [%s] body field, which needs a JsonBody or a FormBody; this request sends a %s.', $field, $body::class)),
+        };
     }
 
     #[NoDiscard]
@@ -466,13 +566,22 @@ class Connector
     }
 
     /**
-     * The connector's own retry policy has to recognise the header it sends
-     * keys in. A custom RetryStrategy is left alone; it reads the request.
+     * The connector's own retry policy has to recognise the header, or the
+     * body field, it sends keys in. A custom RetryStrategy is left alone; it
+     * reads the request.
      */
     private function keyedBy(RetryStrategy $retry): RetryStrategy
     {
-        return $retry instanceof RetryPolicy && $retry->idempotencyHeader !== $this->idempotencyHeader
-            ? $retry->withIdempotencyHeader($this->idempotencyHeader)
+        if (! $retry instanceof RetryPolicy) {
+            return $retry;
+        }
+
+        if ($retry->idempotencyHeader !== $this->idempotencyHeader) {
+            $retry = $retry->withIdempotencyHeader($this->idempotencyHeader);
+        }
+
+        return $retry->idempotencyField !== $this->idempotencyField
+            ? $retry->withIdempotencyField($this->idempotencyField)
             : $retry;
     }
 
@@ -559,10 +668,10 @@ class Connector
     /**
      * @throws TransportException when no response came back
      */
-    private function dispatch(RequestInterface $psr): Response
+    private function dispatch(RequestInterface $psr, bool $unauthenticated = false): Response
     {
         try {
-            $answer = $this->pipeline()->sendRequest($psr);
+            $answer = $this->pipeline($unauthenticated)->sendRequest($psr);
         } catch (ClientExceptionInterface $e) {
             throw TransportException::from($e, $psr, $this->redactor);
         }
@@ -570,26 +679,33 @@ class Connector
         return new Response($answer, $psr, $this->clock, $this->hydrator);
     }
 
-    private function pipeline(): Pipeline
+    /**
+     * @param  bool  $unauthenticated  for a request outside the API: retries and observability only
+     */
+    private function pipeline(bool $unauthenticated = false): Pipeline
     {
         // One counter per send, shared by the retry middleware that counts
         // attempts and the instrumentation that reports them.
         $attempts = new Attempts;
 
-        $middleware = [
-            new Retry($this->retry, $this->clock, $this->sleeper, $this->telemetry, $attempts),
-            ...($this->throttle === null ? [] : [$this->throttle->withTelemetry($this->telemetry)]),
-            ...($this->deprecations === null ? [] : [$this->deprecations]),
-            ...$this->middleware,
-        ];
+        $middleware = [new Retry($this->retry, $this->clock, $this->sleeper, $this->telemetry, $attempts)];
 
-        if ($this->auth !== null) {
-            $middleware[] = new Authenticate($this->auth, $this->telemetry);
-        }
+        if (! $unauthenticated) {
+            $middleware = [
+                ...$middleware,
+                ...($this->throttle === null ? [] : [$this->throttle->withTelemetry($this->telemetry)]),
+                ...($this->deprecations === null ? [] : [$this->deprecations]),
+                ...$this->middleware,
+            ];
 
-        // Last, so it sees the credentials it has to key entries on.
-        if ($this->cache !== null) {
-            $middleware[] = $this->cache;
+            if ($this->auth !== null) {
+                $middleware[] = new Authenticate($this->auth, $this->telemetry);
+            }
+
+            // Last, so it sees the credentials it has to key entries on.
+            if ($this->cache !== null) {
+                $middleware[] = $this->cache;
+            }
         }
 
         // Per attempt, right before the client: a cache hit isn't an attempt.

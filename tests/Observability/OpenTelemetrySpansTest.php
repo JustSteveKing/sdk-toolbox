@@ -88,6 +88,10 @@ it('propagates the span\'s own context in traceparent', function (): void {
 
     $connector->response(ping());
 
+    // The flags come from the span: OpenTelemetry's newer releases set Trace Context Level 2's
+    // random flag as well as sampled, so the byte is 03 there and 01 on older releases.
     $span = spansOf($exporter)[0];
-    expect($http->last()?->getHeaderLine('traceparent'))->toBe("00-{$span->getTraceId()}-{$span->getSpanId()}-01");
+    $flags = sprintf('%02x', $span->getContext()->getTraceFlags());
+    expect($http->last()?->getHeaderLine('traceparent'))->toBe("00-{$span->getTraceId()}-{$span->getSpanId()}-{$flags}")
+        ->and(hexdec($flags) & 0x01)->toBe(1);
 });

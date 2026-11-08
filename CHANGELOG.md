@@ -4,6 +4,24 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 
 ## [Unreleased]
 
+## [0.0.9] - 2026-11-08
+
+Feedback from SDKs built on the toolbox against real APIs. Everything already in 0.0.8 behaves as it did: each addition is opt-in.
+
+### Added
+
+- `sendUnauthenticated($uri, $request)` on the connector, for APIs that hand back a pre-signed URL on another host for an upload. It sends the request to that absolute `https` URI as given, with no authenticator, no connector headers and none of the connector's middleware, only the request's own headers and the User-Agent, and returns the `Response` as `response()` does. Plain `http` is allowed only on an `insecure` connector, and a relative URI or one with user info is refused. Retries, events, logging and tracing apply as they do for `send()`, with the URI redacted. Every other request is held to the base URI as before.
+- `ListFormat`, in `Http`, for APIs that read a list in a query or form as `expand[]=a&expand[]=b` (`Brackets`) or `expand=a&expand=b` (`Repeated`) rather than PHP's `expand[0]=a` (`Indexed`, the default). Set it with `queryLists` on the connector and as the second argument to `FormBody`, and `QueryString::build()` takes one. Only lists change: keyed arrays are `key[name]=value` as before, and booleans, enums and nulls encode as they did.
+- `hasMoreAt: null`, `limit` and `limitParameter` on `StartingAfterPagination`, for APIs that page after the last ID but send no "more" flag. The first request sends the limit, and paging stops on a page shorter than it or an empty one, so it never asks past the end. A limit below one is refused, as `OffsetPagination` refuses one. With a flag, nothing changes.
+- `idempotencyField` on the connector, for APIs that take their deduplication key in the body rather than a header. An `Idempotent` request's key, generated or its own, goes in that top-level field of a JSON or form body, raw, and the header isn't sent. Every retry of one `send()` carries the same key, and the connector tells its `RetryPolicy` the field (`withIdempotencyField()`, new), so a keyed body is retried as a keyed header is. Any other body, or none, throws `InvalidRequestException` before anything is sent.
+- `withField()` on `JsonBody` and `FormBody`: a copy with one more top-level field.
+- Token revocation (RFC 7009): `OAuthClient::revoke($token, $hint)` sends a token to the revocation endpoint with its `token_type_hint`, authenticated as the client is at the token endpoint. `revoke()` on `RefreshingToken`, `ClientCredentials` and `TokenProvider` revokes the stored refresh and access tokens and forgets them, inside the refresh lock. The endpoint is `revocationEndpoint`, new on `OAuthClient` and `RegisteredClient::oauthClient()`; a client without one refuses to revoke.
+- `OAuthClient::fromMetadata()`: a client built from an RFC 8414 authorization server metadata document you've fetched, with its token, authorisation, device authorisation and revocation endpoints.
+
+### Changed
+
+- The `Redactor` masks the signature parameters common pre-signed URLs carry by default: `X-Amz-Signature`, `X-Amz-Credential`, `X-Amz-Security-Token`, `X-Goog-Signature` and `X-Goog-Credential`, beside the `signature` and `sig` it already masked. This only hides more in exceptions, logs, events and fixtures, so nothing that worked before breaks; a `Recorder` with `matchQuery` leaves them out of the comparison, as it does every masked parameter.
+
 ## [0.0.8] - 2026-10-30
 
 A security fix: an API key sent as a query parameter could reach a log through a transport error's exception chain.
@@ -106,7 +124,8 @@ The first release.
 - Testing tools: a fake client, fake time and recorded fixtures.
 - An agent skill for building SDKs with the toolbox.
 
-[Unreleased]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.8...HEAD
+[Unreleased]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.9...HEAD
+[0.0.9]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.8...v0.0.9
 [0.0.8]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.7...v0.0.8
 [0.0.7]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.5...v0.0.6

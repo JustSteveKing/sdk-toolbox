@@ -47,6 +47,7 @@ What follows from that order:
 - **Credentials stay late.** Nothing before authentication, your middleware and a logger included, sees them. The flip side: your middleware can't sign over the `Authorization` header.
 - **The cache keys on credentials,** because it runs after authentication. Users never share entries.
 - **A cache hit isn't an attempt,** so it produces no request events or spans.
+- **`sendUnauthenticated()` runs only retries and the instrumentation and tracing.** A request to a pre-signed URL on another host skips everything about the API, your middleware included ([Requests and bodies](requests-and-bodies.md#uploads-to-a-pre-signed-url)).
 
 ## Ordering your own
 

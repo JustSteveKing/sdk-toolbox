@@ -32,6 +32,23 @@ The base URI itself can't carry a query, a fragment or credentials.
 
 Encode anything a caller supplies with `rawurlencode()` before it goes into a path. `/projects/'.rawurlencode('../../admin')` is one harmless segment.
 
+### Uploads to a pre-signed URL
+
+Some APIs hand back a pre-signed URL on another host, usually object storage, and the client uploads the file there. The URL carries its own signature, so the API's credentials must not go with it, and the request can't be under the base URI anyway. `sendUnauthenticated()` sends one request to such a URL, and returns the `Response` as `response()` does:
+
+```php
+$upload = $acme->send(new CreateUpload('report.pdf'));
+
+$response = $acme->sendUnauthenticated($upload->url, new PutFile($stream, 'application/pdf'));
+```
+
+It's the one way out of the base URI, and it's explicit:
+
+- **The URI has to be absolute and `https`.** Plain `http` is allowed only on a connector built with `insecure: true`. A relative URI, `//host`, or user info in the URI is refused with `UnsafeUriException`.
+- **Nothing the connector adds for its API is sent:** no authenticator, no connector `headers` (which can carry a key), none of your middleware (where an SDK adds its API's own headers and signatures), and no throttle, deprecation watcher or cache, which are all about the API. The request's own headers and body go, with the connector's User-Agent. There's no default `Accept`.
+- **The URI is sent as given.** The request's `path()` isn't used, and a request with a query of its own is refused with `InvalidRequestException`, since a pre-signed URL's signature covers its query.
+- **Retries, events, logging and tracing apply** as they do for `send()`, and the URI is redacted in all of them. The Redactor masks the signature parameters common pre-signed URLs carry by default ([Security](security.md#secrets-are-redacted-everywhere)); add your storage's own with a `Redactor` if it uses other names.
+
 ## Query strings
 
 ```php
@@ -56,6 +73,32 @@ PHP's `http_build_query()` sends `true` as `1` and drops `false`, which most API
 
 Encoding is RFC 3986, so a space is `%20`. Anything else (an object, a resource) throws `InvalidRequestException`.
 
+### Lists
+
+There's no standard for a list in a query string, and APIs read them three ways. `ListFormat` says which:
+
+| `ListFormat` | `['expand' => ['customer', 'invoice']]` is sent as |
+|---|---|
+| `Indexed`, the default | `expand[0]=customer&expand[1]=invoice`, as PHP's `http_build_query()` writes it |
+| `Brackets` | `expand[]=customer&expand[]=invoice` |
+| `Repeated` | `expand=customer&expand=invoice` |
+
+Set it for every request's query on the connector, and for a form body on the body:
+
+```php
+parent::__construct(
+    baseUri: 'https://api.acme.test',
+    queryLists: ListFormat::Repeated,
+);
+
+new FormBody(['tags' => ['urgent', 'billing']], ListFormat::Brackets);
+```
+
+- **Only lists change,** arrays `array_is_list()` is true for. A keyed array is always `key[name]=value`, nested ones too: `['filter' => ['status' => 'open']]` is `filter[status]=open` in every format.
+- **The format applies at any depth,** so `['filter' => ['status' => ['open', 'closed']]]` is `filter[status][]=open&filter[status][]=closed` with `Brackets`, and `filter[status]=open&filter[status]=closed` with `Repeated`.
+- **A list item that is itself an array keeps its index,** `items[0][id]=1&items[1][id]=2`, because `items[][id]=1&items[][qty]=2` can't say whether that's one item or two.
+- **Everything else is as above:** booleans, enums and `null` items behave the same in every format, an empty list sends nothing, and brackets are percent-encoded as `%5B` and `%5D`, as they always were.
+
 ## Headers
 
 Every request gets `Accept: application/json, application/problem+json`, and a User-Agent of your SDK's name followed by `sdk-toolbox/<version> php/<version>`. Set defaults for every request on the connector:
@@ -75,13 +118,15 @@ A request's own `headers()` replace defaults of the same name. `$connector->with
 | Body | Content-Type | Notes |
 |---|---|---|
 | `new JsonBody($data)` | `application/json` | An empty array is sent as `{}`. Accepts arrays and `JsonSerializable` |
-| `new FormBody($fields)` | `application/x-www-form-urlencoded` | Encoded the same way as a query string |
+| `new FormBody($fields)` | `application/x-www-form-urlencoded` | Encoded the same way as a query string; pass a `ListFormat` for [lists](#lists) |
 | `new RawBody($stringOrStream, $type)` | whatever you say | For XML, CSV, binary uploads |
 | `new Multipart(...$parts)` | `multipart/form-data; boundary=...` | RFC 7578 |
 | `new MergePatch($patch)` or `MergePatch::diff($before, $after)` | `application/merge-patch+json` | RFC 7396 |
 | `JsonPatch::new()->...` | `application/json-patch+json` | RFC 6902 |
 
 A body's Content-Type is set for you. A request's `headers()` can still override it.
+
+`JsonBody` and `FormBody` have `withField($name, $value)`, which returns a copy with one more top-level field, replacing any of that name. A `JsonBody` holding a list refuses it with `InvalidRequestException`. The connector uses it to put an idempotency key in the body for APIs that read it there ([Reliability](reliability.md#idempotency-key)).
 
 ### Multipart
 
@@ -134,6 +179,7 @@ Paths are checked as RFC 6901 JSON Pointers. `JsonPointer::from()` builds one fr
 | `response($request)` | the `Response`, whatever its status | returns it |
 | `paginate($request, $strategy)` | a lazy `Paginator` | throws on the failing page |
 | `await($request)` | `result()` of the finished operation | throws |
+| `sendUnauthenticated($uri, $request)` | the `Response`, whatever its status, from a URI outside the base URI, sent without credentials ([above](#uploads-to-a-pre-signed-url)) | returns it |
 
 `Response` wraps the PSR-7 response:
 

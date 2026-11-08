@@ -25,6 +25,8 @@ What the toolbox implements, and how far. "Experimental" marks a draft that is s
 | RFC 6749 OAuth 2.0 | Proposed Standard | client credentials, authorisation code, refresh |
 | RFC 7636 PKCE | Proposed Standard | S256 only, for every client |
 | RFC 8628 Device Authorization | Proposed Standard | start and poll |
+| RFC 7009 Token Revocation | Proposed Standard | `revoke()` with `token_type_hint`, and forgetting the stored token |
+| RFC 8414 Authorization Server Metadata | Proposed Standard | `fromMetadata()` reads the endpoints from a document you fetch; not discovery or `issuer` checks |
 | RFC 7591 Dynamic Client Registration | Proposed Standard | registration, with or without an initial access token; not software statements' signing, or RFC 7592 management |
 | RFC 9700 OAuth Security BCP | Best Current Practice | PKCE everywhere, no implicit grant, single-flight refresh, refresh-token rotation (§4.14.2) |
 | draft-ietf-httpapi-ratelimit-headers-11 | Internet-Draft, expires 2026-11-24 | **experimental:** `RateLimit` and `RateLimit-Policy` read |
@@ -54,7 +56,8 @@ What the toolbox implements, and how far. "Experimental" marks a draft that is s
 
 - `X-RateLimit-*` and `RateLimit-Limit/Remaining/Reset`, including GitHub's;
 - `retry-after-ms`;
-- cursor, offset, page and Stripe-style `starting_after` pagination in response bodies, and a next-page URL in the body, treated like a `Link` header;
+- cursor, offset, page and Stripe-style `starting_after` pagination in response bodies (with a `has_more` flag, or ending on a short page), and a next-page URL in the body, treated like a `Link` header;
 - HMAC webhook signatures over a timestamp and the body, in Stripe's, Slack's and Ghost's dialects;
-- bare (unquoted) Idempotency-Key values, and idempotency keys under another header name, such as `X-Idempotency-Key`;
+- bare (unquoted) Idempotency-Key values, idempotency keys under another header name, such as `X-Idempotency-Key`, and in a JSON or form body field;
+- lists in a query string or form body as `ids[0]=1`, `ids[]=1` or `ids=1`, whichever an API reads (`ListFormat`);
 - asynchronous work you submit and then look up until a status field says it's finished, which `poll()` checks with the API's own words for done and failed.

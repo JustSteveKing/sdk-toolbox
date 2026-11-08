@@ -25,3 +25,10 @@ it('masks the raw URI wherever a client quoted it', function (): void {
     expect((new Redactor)->message('Timeout for "https://api.example.com/search?q=a&api_key=abc123" (api_key=abc123)'))
         ->toBe('Timeout for "https://api.example.com/search?q=a&api_key=%5Bredacted%5D" (api_key=%5Bredacted%5D)');
 });
+
+it('masks common pre-signed URL signature parameters, whatever their case', function (): void {
+    expect((new Redactor)->uri('https://uploads.storage.test/f?X-Amz-Credential=AKID&X-Amz-Signature=a&x-amz-security-token=b&X-Goog-Signature=c&X-Goog-Credential=d&Signature=e&sig=f&expires=600'))
+        ->toBe('https://uploads.storage.test/f?X-Amz-Credential=%5Bredacted%5D&X-Amz-Signature=%5Bredacted%5D&x-amz-security-token=%5Bredacted%5D&X-Goog-Signature=%5Bredacted%5D&X-Goog-Credential=%5Bredacted%5D&Signature=%5Bredacted%5D&sig=%5Bredacted%5D&expires=600')
+        ->and((new Redactor)->message('PUT https://uploads.storage.test/f?X-Amz-Signature=abc123 timed out'))
+        ->toBe('PUT https://uploads.storage.test/f?X-Amz-Signature=%5Bredacted%5D timed out');
+});
