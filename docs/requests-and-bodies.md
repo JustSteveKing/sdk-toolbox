@@ -32,6 +32,23 @@ The base URI itself can't carry a query, a fragment or credentials.
 
 Encode anything a caller supplies with `rawurlencode()` before it goes into a path. `/projects/'.rawurlencode('../../admin')` is one harmless segment.
 
+### Uploads to a pre-signed URL
+
+Some APIs hand back a pre-signed URL on another host, usually object storage, and the client uploads the file there. The URL carries its own signature, so the API's credentials must not go with it, and the request can't be under the base URI anyway. `sendUnauthenticated()` sends one request to such a URL, and returns the `Response` as `response()` does:
+
+```php
+$upload = $acme->send(new CreateUpload('report.pdf'));
+
+$response = $acme->sendUnauthenticated($upload->url, new PutFile($stream, 'application/pdf'));
+```
+
+It's the one way out of the base URI, and it's explicit:
+
+- **The URI has to be absolute and `https`.** Plain `http` is allowed only on a connector built with `insecure: true`. A relative URI, `//host`, or user info in the URI is refused with `UnsafeUriException`.
+- **Nothing the connector adds for its API is sent:** no authenticator, no connector `headers` (which can carry a key), none of your middleware (where an SDK adds its API's own headers and signatures), and no throttle, deprecation watcher or cache, which are all about the API. The request's own headers and body go, with the connector's User-Agent. There's no default `Accept`.
+- **The URI is sent as given.** The request's `path()` isn't used, and a request with a query of its own is refused with `InvalidRequestException`, since a pre-signed URL's signature covers its query.
+- **Retries, events, logging and tracing apply** as they do for `send()`, and the URI is redacted in all of them. The Redactor masks the signature parameters common pre-signed URLs carry by default ([Security](security.md#secrets-are-redacted-everywhere)); add your storage's own with a `Redactor` if it uses other names.
+
 ## Query strings
 
 ```php
@@ -134,6 +151,7 @@ Paths are checked as RFC 6901 JSON Pointers. `JsonPointer::from()` builds one fr
 | `response($request)` | the `Response`, whatever its status | returns it |
 | `paginate($request, $strategy)` | a lazy `Paginator` | throws on the failing page |
 | `await($request)` | `result()` of the finished operation | throws |
+| `sendUnauthenticated($uri, $request)` | the `Response`, whatever its status, from a URI outside the base URI, sent without credentials ([above](#uploads-to-a-pre-signed-url)) | returns it |
 
 `Response` wraps the PSR-7 response:
 

@@ -126,6 +126,7 @@ it('gets a project', function (): void {
 - **Request extras:** a request implements `HasQuery`, `HasHeaders` or `HasBody` for what it needs.
 - **Bodies:** JSON, form, streamed multipart, JSON Merge Patch (with `MergePatch::diff($before, $after)`) and JSON Patch.
 - **Paths** are appended to the base URI and can't escape it, so a caller's input can't send a request, or its credentials, to another host.
+- **Uploads to a pre-signed URL** on another host go through `sendUnauthenticated()`, which sends the request there and nothing of the API's: no credentials, connector headers or middleware.
 
 More in [Requests and bodies](docs/requests-and-bodies.md).
 

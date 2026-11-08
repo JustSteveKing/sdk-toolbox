@@ -13,8 +13,10 @@ use Psr\Http\Message\RequestInterface;
  * Keeps credentials out of exceptions, logs and dumps.
  *
  * Headers and query parameters are matched by name, case-insensitively.
- * The defaults cover the usual places a key travels; an authenticator that
- * puts one somewhere else declares it, and the connector adds it here.
+ * The defaults cover the usual places a key travels, and the signature
+ * parameters common pre-signed URLs carry, which grant access to whoever
+ * holds the URL until it expires. An authenticator that puts a key
+ * somewhere else declares it, and the connector adds it here.
  */
 final readonly class Redactor
 {
@@ -41,6 +43,12 @@ final readonly class Redactor
         'password',
         'signature',
         'sig',
+        // Common pre-signed URL signature parameters.
+        'x-amz-signature',
+        'x-amz-credential',
+        'x-amz-security-token',
+        'x-goog-signature',
+        'x-goog-credential',
     ];
 
     /** @var list<string> */

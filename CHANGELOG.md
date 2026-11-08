@@ -4,6 +4,16 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 
 ## [Unreleased]
 
+Feedback from SDKs built on the toolbox against real APIs. Everything already in 0.0.8 behaves as it did: each addition is opt-in.
+
+### Added
+
+- `sendUnauthenticated($uri, $request)` on the connector, for APIs that hand back a pre-signed URL on another host for an upload. It sends the request to that absolute `https` URI as given, with no authenticator, no connector headers and none of the connector's middleware, only the request's own headers and the User-Agent, and returns the `Response` as `response()` does. Plain `http` is allowed only on an `insecure` connector, and a relative URI or one with user info is refused. Retries, events, logging and tracing apply as they do for `send()`, with the URI redacted. Every other request is held to the base URI as before.
+
+### Changed
+
+- The `Redactor` masks the signature parameters common pre-signed URLs carry by default: `X-Amz-Signature`, `X-Amz-Credential`, `X-Amz-Security-Token`, `X-Goog-Signature` and `X-Goog-Credential`, beside the `signature` and `sig` it already masked. This only hides more in exceptions, logs, events and fixtures, so nothing that worked before breaks; a `Recorder` with `matchQuery` leaves them out of the comparison, as it does every masked parameter.
+
 ## [0.0.8] - 2026-10-30
 
 A security fix: an API key sent as a query parameter could reach a log through a transport error's exception chain.

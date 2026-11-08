@@ -78,6 +78,8 @@ Paths are appended to the connector's base URI (`/projects` under `https://api.t
 - `?` or `#` in the path;
 - an invalid URI, such as an unencoded space.
 
+For an upload to a pre-signed URL on another host, use `$connector->sendUnauthenticated($url, $request)`: an absolute `https` URI (plain `http` only on an `insecure` connector), sent as given, with no authenticator, connector headers or middleware, only the request's own headers and the User-Agent. Retries and events still apply, with the URI redacted. It returns the `Http\Response` whatever its status, like `response()`.
+
 ## Sending
 
 - `send($request)` returns `result()`, and throws for 4xx and 5xx.

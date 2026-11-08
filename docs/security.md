@@ -6,6 +6,7 @@ The defaults assume an SDK will be used carelessly by somebody, eventually: a ca
 
 - **Paths are appended to the base URI, and can't escape it.** Absolute URLs, `//host`, and `..` segments (percent-encoded ones too) are refused with `UnsafeUriException` before anything is sent ([Requests and bodies](requests-and-bodies.md#the-base-uri)).
 - **URLs from the API are held to the same rule.** A pagination `next` link, an operation monitor's `Location` or a 303 target outside the base URI is refused, so a compromised or confused API can't send the client, and its credentials, elsewhere.
+- **The one way out carries nothing of the API's.** `sendUnauthenticated()`, for an upload to a pre-signed URL on another host, has to be called by name with an absolute `https` URI, and sends no authenticator, connector headers or middleware ([Requests and bodies](requests-and-bodies.md#uploads-to-a-pre-signed-url)).
 
 This is the class of hole behind Saloon's v4 SSRF fix, where an absolute URL from a request overrode the base URL.
 
@@ -28,7 +29,8 @@ A connector with an authenticator won't be built against an `http://` base URI u
 The sensitive names start with:
 
 - **headers:** `Authorization`, `Proxy-Authorization`, `Cookie`, `Set-Cookie`, `X-Api-Key`, `Api-Key` and `X-Auth-Token`;
-- **query parameters:** `api_key`, `apikey`, `key`, `token`, `access_token`, `refresh_token`, `client_secret`, `password`, `signature` and `sig`.
+- **query parameters:** `api_key`, `apikey`, `key`, `token`, `access_token`, `refresh_token`, `client_secret`, `password`, `signature` and `sig`;
+- **pre-signed URL signature parameters:** `X-Amz-Signature`, `X-Amz-Credential`, `X-Amz-Security-Token`, `X-Goog-Signature` and `X-Goog-Credential`, since a pre-signed URL grants access to whoever holds it until it expires. Masked since 0.0.9.
 
 An authenticator adds whatever header or parameter it writes to, and you can pass your own `Redactor` with more names.
 
