@@ -66,5 +66,6 @@ Pass `scopeSeparator: ','` when the server lists scopes with commas, and `authen
 | `(new Auth\OAuth\ClientRegistration($endpoint))->register(new Auth\OAuth\ClientMetadata([...]))` | registering a client at runtime (RFC 7591); `->oauthClient($tokenEndpoint, ...)` on the result |
 | `new Auth\OAuth\ProvidedToken(new Auth\OAuth\TokenProvider(..., fetch: ...))` | any other grant: you fetch the token, the toolbox stores, locks, refreshes and retries |
 
+- **Revocation (RFC 7009):** `$oauth->revoke($token, 'refresh_token')`, or `revoke()` on `RefreshingToken`, `ClientCredentials` or a `TokenProvider` to revoke the stored token and forget it. The client needs `revocationEndpoint`, or `Auth\OAuth\OAuthClient::fromMetadata($metadata, $id, $secret)` from RFC 8414 metadata that names one.
 - **Storage:** with more than one process, use `Auth\OAuth\Psr16TokenStore` and a `RefreshLock` adapted from the framework's lock.
 - **Rejected tokens:** on a 401, OAuth authenticators renew the token and retry once. Don't add that yourself.

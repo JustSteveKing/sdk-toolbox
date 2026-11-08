@@ -36,6 +36,8 @@ final readonly class RefreshingToken implements Refreshable
 
     private TokenProvider $provider;
 
+    private OAuthClient $client;
+
     public function __construct(
         OAuthClient $client,
         string $key,
@@ -44,6 +46,7 @@ final readonly class RefreshingToken implements Refreshable
         int $leeway = 30,
         bool $rotating = false,
     ) {
+        $this->client = $client;
         $this->provider = new TokenProvider(
             key: $key,
             store: $store,
@@ -71,5 +74,14 @@ final readonly class RefreshingToken implements Refreshable
             },
             leeway: $leeway,
         );
+    }
+
+    /**
+     * Revokes the stored token at the server's revocation endpoint (RFC
+     * 7009) and forgets it. See TokenProvider::revoke().
+     */
+    public function revoke(): void
+    {
+        $this->provider->revoke($this->client);
     }
 }

@@ -151,7 +151,7 @@ More in [Errors](docs/errors.md).
 | OAuth 2.0, for a CLI | the device flow |
 | OAuth 2.0, registering at runtime | `ClientRegistration` (RFC 7591) |
 
-Credentials don't go over plain HTTP unless you say so. Tokens refresh once, even across processes.
+Credentials don't go over plain HTTP unless you say so. Tokens refresh once, even across processes, and can be revoked at sign-out (RFC 7009).
 
 More in [Authentication](docs/authentication.md).
 

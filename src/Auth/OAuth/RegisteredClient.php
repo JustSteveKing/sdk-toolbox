@@ -117,6 +117,7 @@ final readonly class RegisteredClient
         ?StreamFactoryInterface $streams = null,
         ?ClockInterface $clock = null,
         string $scopeSeparator = ' ',
+        ?string $revocationEndpoint = null,
     ): OAuthClient {
         $authentication = match ($this->tokenEndpointAuthMethod()) {
             'client_secret_basic', 'none' => ClientAuthentication::Basic,
@@ -136,6 +137,7 @@ final readonly class RegisteredClient
             streams: $streams,
             clock: $clock ?? new SystemClock,
             scopeSeparator: $scopeSeparator,
+            revocationEndpoint: $revocationEndpoint,
         );
     }
 

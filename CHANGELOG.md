@@ -13,6 +13,8 @@ Feedback from SDKs built on the toolbox against real APIs. Everything already in
 - `hasMoreAt: null`, `limit` and `limitParameter` on `StartingAfterPagination`, for APIs that page after the last ID but send no "more" flag. The first request sends the limit, and paging stops on a page shorter than it or an empty one, so it never asks past the end. A limit below one is refused, as `OffsetPagination` refuses one. With a flag, nothing changes.
 - `idempotencyField` on the connector, for APIs that take their deduplication key in the body rather than a header. An `Idempotent` request's key, generated or its own, goes in that top-level field of a JSON or form body, raw, and the header isn't sent. Every retry of one `send()` carries the same key, and the connector tells its `RetryPolicy` the field (`withIdempotencyField()`, new), so a keyed body is retried as a keyed header is. Any other body, or none, throws `InvalidRequestException` before anything is sent.
 - `withField()` on `JsonBody` and `FormBody`: a copy with one more top-level field.
+- Token revocation (RFC 7009): `OAuthClient::revoke($token, $hint)` sends a token to the revocation endpoint with its `token_type_hint`, authenticated as the client is at the token endpoint. `revoke()` on `RefreshingToken`, `ClientCredentials` and `TokenProvider` revokes the stored refresh and access tokens and forgets them, inside the refresh lock. The endpoint is `revocationEndpoint`, new on `OAuthClient` and `RegisteredClient::oauthClient()`; a client without one refuses to revoke.
+- `OAuthClient::fromMetadata()`: a client built from an RFC 8414 authorization server metadata document you've fetched, with its token, authorisation, device authorisation and revocation endpoints.
 
 ### Changed
 

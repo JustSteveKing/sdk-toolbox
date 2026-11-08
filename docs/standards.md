@@ -25,6 +25,8 @@ What the toolbox implements, and how far. "Experimental" marks a draft that is s
 | RFC 6749 OAuth 2.0 | Proposed Standard | client credentials, authorisation code, refresh |
 | RFC 7636 PKCE | Proposed Standard | S256 only, for every client |
 | RFC 8628 Device Authorization | Proposed Standard | start and poll |
+| RFC 7009 Token Revocation | Proposed Standard | `revoke()` with `token_type_hint`, and forgetting the stored token |
+| RFC 8414 Authorization Server Metadata | Proposed Standard | `fromMetadata()` reads the endpoints from a document you fetch; not discovery or `issuer` checks |
 | RFC 7591 Dynamic Client Registration | Proposed Standard | registration, with or without an initial access token; not software statements' signing, or RFC 7592 management |
 | RFC 9700 OAuth Security BCP | Best Current Practice | PKCE everywhere, no implicit grant, single-flight refresh, refresh-token rotation (§4.14.2) |
 | draft-ietf-httpapi-ratelimit-headers-11 | Internet-Draft, expires 2026-11-24 | **experimental:** `RateLimit` and `RateLimit-Policy` read |

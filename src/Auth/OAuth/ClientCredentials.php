@@ -24,6 +24,8 @@ final readonly class ClientCredentials implements Refreshable
 
     private TokenProvider $provider;
 
+    private OAuthClient $client;
+
     /**
      * @param  list<string>  $scopes
      */
@@ -38,6 +40,7 @@ final readonly class ClientCredentials implements Refreshable
             throw new InvalidRequestException('The client credentials grant is only for confidential clients (RFC 6749 section 4.4); this client has no secret.');
         }
 
+        $this->client = $client;
         $this->provider = new TokenProvider(
             key: implode('|', ['client_credentials', $client->tokenEndpoint, $client->clientId, ...$scopes]),
             store: $store,
@@ -49,5 +52,14 @@ final readonly class ClientCredentials implements Refreshable
             ),
             leeway: $leeway,
         );
+    }
+
+    /**
+     * Revokes the stored token at the server's revocation endpoint (RFC
+     * 7009) and forgets it. See TokenProvider::revoke().
+     */
+    public function revoke(): void
+    {
+        $this->provider->revoke($this->client);
     }
 }

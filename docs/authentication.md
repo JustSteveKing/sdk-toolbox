@@ -41,6 +41,7 @@ $oauth = new OAuthClient(
 - **TLS:** every endpoint has to be HTTPS, unless you pass `insecure: true`.
 - **Client authentication** uses HTTP Basic. Following RFC 6749 §2.3.1, the ID and secret are form-encoded before Basic encoding, which is the step most clients miss: a secret with a `+` in it fails without it. Pass `authentication: ClientAuthentication::Post` for servers that want them in the body instead.
 - **The token endpoint** is called directly over PSR-18, not through your connector. It's usually another host with different rules.
+- **From the server's metadata:** `OAuthClient::fromMetadata($metadata, $id, $secret)` reads the token, authorisation, device authorisation and revocation endpoints from an RFC 8414 metadata document you've fetched and decoded. Fetch it from `/.well-known/oauth-authorization-server` under the issuer, and check its `issuer` is the one you expected (§3.3); the toolbox doesn't fetch it for you.
 - **Scopes** are listed with spaces, as RFC 6749 §3.3 says. Some servers (Todoist among them) want commas instead: pass `scopeSeparator: ','`, and every flow sends them that way and reads the granted scopes back the same way.
 
 ### Server to server: client credentials
@@ -145,6 +146,22 @@ $oauth = $client->oauthClient('https://auth.acme.test/oauth/token', 'https://aut
 - **What comes back** is what the server registered, which can differ from what you asked for. `oauthClient()` authenticates the way it was registered to: Basic, the body, or nothing for a public client. A method the toolbox can't use, such as `private_key_jwt`, throws.
 - **The secret,** and the registration access token if the server issues one (RFC 7592), are credentials: `clientSecret()` and `registrationAccessToken()` return them, and they're kept out of dumps. A `client_secret_expires_at` of 0 means it never expires, and reads as null.
 - **A refusal** (§3.2.2, such as `invalid_redirect_uri`) throws `OAuthException`.
+
+### Revoking a token
+
+At sign-out, or when a token may have leaked, revoke it so it stops working before it expires (RFC 7009). The client needs a revocation endpoint: pass `revocationEndpoint`, or build it with `fromMetadata()` from a server that publishes `revocation_endpoint`. Without one, `revoke()` throws `InvalidRequestException` and sends nothing.
+
+```php
+$oauth->revoke($refreshToken, 'refresh_token');
+$oauth->revoke($accessToken);   // an AccessToken is hinted as access_token
+
+(new RefreshingToken($oauth, "user:{$user->id}", $store, $lock))->revoke();
+```
+
+- **The hint,** `token_type_hint`, is `access_token` or `refresh_token` (§2.1). It helps the server look the token up; it doesn't change what's revoked.
+- **The client authenticates** as it does at the token endpoint: Basic, the body, or just its ID for a public client.
+- **A 200 is success,** and a server answers 200 for a token that was already invalid (§2.2), so revoking twice is safe. Anything else throws `OAuthException`, with `unsupported_token_type` when the server can't revoke that kind of token (§2.2.1).
+- **`revoke()` on `RefreshingToken`, `ClientCredentials` or a `TokenProvider`** revokes the stored token and forgets it. The refresh token goes first, since revoking it SHOULD end the whole grant, then the access token, as a server needn't do both. It runs inside the refresh lock, so another process can't store a fresh token halfway through. The token is forgotten only once the server has accepted it, so a failure leaves it stored to try again; call `$store->forget($key)` yourself if signing out locally matters more.
 
 ## When the API rejects a token
 
