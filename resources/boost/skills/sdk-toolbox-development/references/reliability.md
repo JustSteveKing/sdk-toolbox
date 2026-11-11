@@ -15,10 +15,13 @@ Configure on the connector:
 
 ```php
 retry: RetryPolicy::standard()->withMaxAttempts(5)->withDeadline(30.0),
+retry: RetryPolicy::interactive(),
 retry: RetryPolicy::none(),
 ```
 
-For API-specific rules, such as "a 429 for an exhausted plan won't clear", implement `Retries\RetryStrategy` and delegate everything else to a `RetryPolicy`.
+`standard()` suits queued work (`Retry-After` waited out up to 60s); `interactive()` suits code a person is waiting on (up to 5s, everything done within 10s). Always let the SDK's caller pass their own `RetryStrategy`, and say in the README which preset fits where.
+
+For an API error code that must never be retried, whatever its status (Resend's `invalid_idempotent_request` 409, a 429 for an exhausted plan), use `RetryPolicy::standard()->withoutRetryingWhen(fn (Http\Response $response): bool => ...)`. It only vetoes, reading the body is safe, and the status rules still decide everything else. For a different wait or other rules, implement `Retries\RetryStrategy` and delegate the rest to a `RetryPolicy`.
 
 Never write a retry loop around `send()`.
 
@@ -26,9 +29,10 @@ Never write a retry loop around `send()`.
 
 When the API supports Idempotency-Key, implement `Requests\Idempotent` on its POST requests. Return a stable key from the caller (an order ID) or null for a random UUID. The same key is sent on every retry of one `send()`.
 
-- **Format:** pass `idempotencyKeys: Retries\IdempotencyKey::Bare` to the connector for APIs, Stripe among them, that want an unquoted key.
+- **Format:** the key is sent bare by default, as Stripe, Resend and most APIs take it. Pass `idempotencyKeys: Retries\IdempotencyKey::Quoted` only for an API that wants the draft's quoted Structured Field String; check the API's docs for which.
 - **Header:** pass `idempotencyHeader: 'X-Idempotency-Key'` for an API that names it differently; the connector keeps its `RetryPolicy` in step.
 - **Body field:** pass `idempotencyField: 'dedupe_id'` for an API that takes the key in the body. The raw key goes in that field of a `JsonBody` or `FormBody`, no header is sent, and retries keep the same key; any other body, or none, throws `Errors\InvalidRequestException`.
+- **Replays:** `$response->replayed()` reads `Idempotent-Replayed: true` (pass another header name if the API uses one); surface it where a caller needs to know "already done", such as from a send or a charge.
 - **Status:** experimental, since the draft is still changing.
 
 ## Rate limits

@@ -5,18 +5,19 @@ declare(strict_types=1);
 namespace JustSteveKing\SdkToolbox\Auth\OAuth;
 
 use Psr\Http\Message\RequestInterface;
+use SensitiveParameter;
 
 /**
  * @internal
  */
 trait BearerFromProvider
 {
-    public function authenticate(RequestInterface $request): RequestInterface
+    public function authenticate(#[SensitiveParameter] RequestInterface $request): RequestInterface
     {
         return $request->withHeader('Authorization', "Bearer {$this->provider->current()->token}");
     }
 
-    public function refresh(RequestInterface $rejected): void
+    public function refresh(#[SensitiveParameter] RequestInterface $rejected): void
     {
         $header = $rejected->getHeaderLine('Authorization');
 

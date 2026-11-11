@@ -54,4 +54,4 @@ The SDK's users verify incoming webhooks with one of these, from `Webhooks\`:
 - `HmacWebhook($secret, header: 'X-Signature', prefix: 'sha256=')`;
 - `SignedWebhook($messageVerifier)`.
 
-Expose one from the SDK, configured for the API, rather than leaving users to pick. Give it the PSR-7 request before anything parses the body.
+Expose one from the SDK, configured for the API, rather than leaving users to pick. Point users at `Webhooks\SeenDeliveries($cache)` for duplicates: verify, then `firstTime($id)` with the ID the verifier returns (`forget($id)` when handling failed). Give it the PSR-7 request before anything parses the body.

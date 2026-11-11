@@ -10,6 +10,7 @@ use JustSteveKing\SdkToolbox\Middleware\Next;
 use JustSteveKing\SdkToolbox\Observability\Telemetry;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use SensitiveParameter;
 
 /**
  * Adds credentials as the last step before the HTTP client, and renews
@@ -31,7 +32,7 @@ final readonly class Authenticate implements Middleware
         private Telemetry $telemetry = new Telemetry,
     ) {}
 
-    public function handle(RequestInterface $request, Next $next): ResponseInterface
+    public function handle(#[SensitiveParameter] RequestInterface $request, Next $next): ResponseInterface
     {
         $sent = $this->auth->authenticate($request);
         $response = $next->handle($sent);

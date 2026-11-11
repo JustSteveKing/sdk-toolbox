@@ -19,6 +19,7 @@ use Psr\Http\Message\ResponseFactoryInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 use Psr\SimpleCache\CacheInterface;
+use SensitiveParameter;
 
 /**
  * A private HTTP cache (RFC 9111) over any PSR-16 store.
@@ -79,7 +80,7 @@ final readonly class HttpCache implements Middleware
         return new self($this->store, $this->clock, $this->redactor, $this->maxBodySize, $this->prefix, $telemetry, $this->responses, $this->streams);
     }
 
-    public function handle(RequestInterface $request, Next $next): ResponseInterface
+    public function handle(#[SensitiveParameter] RequestInterface $request, Next $next): ResponseInterface
     {
         $method = strtoupper($request->getMethod());
 
@@ -185,7 +186,7 @@ final readonly class HttpCache implements Middleware
     /**
      * @param  CacheEntry  $entry
      */
-    private function conditional(RequestInterface $request, array $entry): RequestInterface
+    private function conditional(#[SensitiveParameter] RequestInterface $request, array $entry): RequestInterface
     {
         $etag = $this->line($entry['headers'], 'ETag');
         $modified = $this->line($entry['headers'], 'Last-Modified');
@@ -225,7 +226,7 @@ final readonly class HttpCache implements Middleware
         return [...$entry, 'headers' => $headers, 'stored_at' => $this->now()];
     }
 
-    private function maybeStore(string $key, RequestInterface $request, ResponseInterface $response): ResponseInterface
+    private function maybeStore(string $key, #[SensitiveParameter] RequestInterface $request, #[SensitiveParameter] ResponseInterface $response): ResponseInterface
     {
         $directives = CacheControl::from($response);
         $vary = array_map(trim(...), explode(',', $response->getHeaderLine('Vary')));
@@ -284,7 +285,7 @@ final readonly class HttpCache implements Middleware
      *
      * @return CacheEntry|null
      */
-    private function entry(string $key, RequestInterface $request): ?array
+    private function entry(string $key, #[SensitiveParameter] RequestInterface $request): ?array
     {
         $entry = $this->store->get($key);
 
@@ -329,7 +330,7 @@ final readonly class HttpCache implements Middleware
      * is stored, so the method needn't be part of it), hashed with SHA-256 so keys fit PSR-16 and a credential is
      * never stored in a key.
      */
-    private function key(RequestInterface $request): string
+    private function key(#[SensitiveParameter] RequestInterface $request): string
     {
         $credentials = [];
 

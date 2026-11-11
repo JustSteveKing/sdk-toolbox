@@ -9,6 +9,7 @@ use Http\Discovery\Psr17FactoryDiscovery;
 use JustSteveKing\SdkToolbox\Bodies\EncodesJson;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use SensitiveParameter;
 
 /**
  * Responses to queue on a FakeClient.
@@ -69,7 +70,7 @@ final class FakeResponse
      */
     public static function networkError(string $message = 'Connection refused'): Closure
     {
-        return static fn (RequestInterface $request): never => throw new FakeNetworkException($request, $message);
+        return static fn (#[SensitiveParameter] RequestInterface $request): never => throw new FakeNetworkException($request, $message);
     }
 
     /**

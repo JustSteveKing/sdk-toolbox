@@ -130,6 +130,28 @@ it('uses the request\'s own key, quoted or bare', function (): void {
     expect($http->last()?->getHeaderLine('Idempotency-Key'))->toBe('order-42');
 });
 
+it('sends a bare key by default, the form the APIs in use take', function (): void {
+    $http = new FakeClient(FakeResponse::empty(201), FakeResponse::empty(201));
+    $time = new FakeTime;
+    $default = new Connector('https://api.example.com', http: $http, clock: $time, sleeper: $time);
+
+    $default->send(post(new JsonBody([]), idempotent: true, key: 'order-42'));
+    expect($http->last()?->getHeaderLine('Idempotency-Key'))->toBe('order-42');
+
+    $default->send(post(new JsonBody([]), idempotent: true));
+    expect($http->last()?->getHeaderLine('Idempotency-Key'))->toMatch('/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/');
+});
+
+it('sends the draft\'s quoted string when asked to', function (): void {
+    $http = new FakeClient(FakeResponse::empty(201));
+    $time = new FakeTime;
+
+    (new Connector('https://api.example.com', http: $http, clock: $time, sleeper: $time, idempotencyKeys: IdempotencyKey::Quoted))
+        ->send(post(new JsonBody([]), idempotent: true, key: 'order-42'));
+
+    expect($http->last()?->getHeaderLine('Idempotency-Key'))->toBe('"order-42"');
+});
+
 it('sends the key in the API\'s own header, and retries on it', function (): void {
     $http = new FakeClient(FakeResponse::empty(502), FakeResponse::json(['id' => 'em_1'], 201));
     $time = new FakeTime;

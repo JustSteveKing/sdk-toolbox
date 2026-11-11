@@ -12,6 +12,7 @@ use JustSteveKing\SdkToolbox\Middleware\Next;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use SensitiveParameter;
 
 /**
  * Reports each attempt as it goes to the HTTP client: sending, then
@@ -26,7 +27,7 @@ final readonly class Observe implements Middleware
         private Attempts $attempts,
     ) {}
 
-    public function handle(RequestInterface $request, Next $next): ResponseInterface
+    public function handle(#[SensitiveParameter] RequestInterface $request, Next $next): ResponseInterface
     {
         $snapshot = $this->telemetry->snapshot($request);
         $attempt = $this->attempts->current;

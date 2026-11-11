@@ -14,7 +14,7 @@ An authenticator adds credentials to each request. It runs last, just before the
 | `new HeaderKey('X-Api-Key', $key)` | the key in a header of the API's choosing |
 | `new QueryKey('api_key', $key)` | the key in the query string, for APIs that give no other choice |
 
-The header or parameter a `HeaderKey` or `QueryKey` writes to is masked in exceptions and logs, whatever it's called. `QueryKey` also replaces any value a request's own query had for that parameter, so a caller can't swap in a different key.
+The header or parameter a `HeaderKey` or `QueryKey` writes to is masked in exceptions and logs, whatever it's called. Writing your own `Authenticator`, mark the request parameter of `authenticate()` (and `refresh()`, for `Refreshable`) with `#[\SensitiveParameter]`, give any class holding a secret a `__debugInfo()`, and keep the secret in a constructor parameter marked the same way: the authenticated request is on the stack whenever a transport failure is raised ([Security](security.md#secrets-are-redacted-everywhere)). `QueryKey` also replaces any value a request's own query had for that parameter, so a caller can't swap in a different key.
 
 ### No credentials over plain HTTP
 

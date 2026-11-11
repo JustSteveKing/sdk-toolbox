@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JustSteveKing\SdkToolbox\Http;
 
 use Psr\Http\Message\RequestInterface;
+use SensitiveParameter;
 
 /**
  * Changes query parameters on a PSR-7 request, leaving the rest of the
@@ -17,7 +18,7 @@ final class Query
     /**
      * @param  array<string, mixed>  $parameters  null removes the parameter
      */
-    public static function with(RequestInterface $request, array $parameters): RequestInterface
+    public static function with(#[SensitiveParameter] RequestInterface $request, #[SensitiveParameter] array $parameters): RequestInterface
     {
         $uri = $request->getUri();
         $names = array_keys($parameters);
@@ -32,7 +33,7 @@ final class Query
         return $request->withUri($uri->withQuery(implode('&', array_filter([...$kept, $added], static fn (string $part): bool => $part !== ''))));
     }
 
-    public static function value(RequestInterface $request, string $name): ?string
+    public static function value(#[SensitiveParameter] RequestInterface $request, string $name): ?string
     {
         foreach (explode('&', $request->getUri()->getQuery()) as $pair) {
             [$key, $value] = array_pad(explode('=', $pair, 2), 2, '');

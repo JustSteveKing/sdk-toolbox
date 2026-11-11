@@ -38,3 +38,9 @@ assertType('JustSteveKing\SdkToolbox\Collections\LazyCollection<int, string>', $
 assertType('JustSteveKing\SdkToolbox\Collections\Collection<int, JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\Member>', $members->take(10)->collect());
 assertType('JustSteveKing\SdkToolbox\Collections\Collection<int, string>', JustSteveKing\SdkToolbox\Collections\Collection::make($members->all())->map(fn (JustSteveKing\SdkToolbox\Tests\Fixtures\Acme\Member $member): string => $member->displayName));
 assertType('JustSteveKing\SdkToolbox\Collections\Collection<(int|string), mixed>', $acme->response(new GetProject('prj_1'))->collect('data'));
+
+// Untyped requests: the whole decoded body, whichever method built them.
+assertType('array<mixed>', $acme->send(JustSteveKing\SdkToolbox\Requests\Untyped\JsonRequest::get('/projects/prj_1')));
+assertType('array<mixed>', $acme->send(JustSteveKing\SdkToolbox\Requests\Untyped\JsonRequest::post('/projects', ['name' => 'Website'])));
+assertType('array<mixed>', $acme->send(JustSteveKing\SdkToolbox\Requests\Untyped\JsonRequest::post('/charges', ['amount' => 100], idempotencyKey: 'charge-1')));
+assertType('array<mixed>', $acme->send(JustSteveKing\SdkToolbox\Requests\Untyped\JsonRequest::patch('/projects/prj_1', ['name' => 'Site'])));

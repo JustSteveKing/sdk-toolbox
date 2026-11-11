@@ -11,6 +11,7 @@ use JustSteveKing\SdkToolbox\Http\StructuredFields;
 use JustSteveKing\SdkToolbox\Redaction\Redactor;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use SensitiveParameter;
 
 /**
  * What a response said about the end of the endpoint it came from.
@@ -39,7 +40,7 @@ final readonly class DeprecationNotice
     /**
      * The notice in a response, or null when it says nothing about either.
      */
-    public static function from(RequestInterface $request, ResponseInterface $response, Redactor $redactor = new Redactor): ?self
+    public static function from(#[SensitiveParameter] RequestInterface $request, #[SensitiveParameter] ResponseInterface $response, Redactor $redactor = new Redactor): ?self
     {
         $deprecated = $response->hasHeader('Deprecation');
         $deprecatedAt = $deprecated ? self::deprecationDate($response->getHeaderLine('Deprecation')) : null;

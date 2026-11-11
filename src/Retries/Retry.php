@@ -15,6 +15,7 @@ use Psr\Clock\ClockInterface;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use SensitiveParameter;
 
 /**
  * Runs the rest of the pipeline again for as long as the strategy says.
@@ -37,7 +38,7 @@ final readonly class Retry implements Middleware
         private Attempts $attempts = new Attempts,
     ) {}
 
-    public function handle(RequestInterface $request, Next $next): ResponseInterface
+    public function handle(#[SensitiveParameter] RequestInterface $request, Next $next): ResponseInterface
     {
         $started = $this->clock->now();
         $body = $request->getBody();

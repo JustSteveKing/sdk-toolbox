@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JustSteveKing\SdkToolbox\Auth;
 
 use Psr\Http\Message\RequestInterface;
+use SensitiveParameter;
 
 /**
  * An authenticator whose credentials can be renewed, so a request the API
@@ -16,5 +17,5 @@ interface Refreshable extends Authenticator
     /**
      * @param  RequestInterface  $rejected  the request the API turned away, carrying the stale credentials
      */
-    public function refresh(RequestInterface $rejected): void;
+    public function refresh(#[SensitiveParameter] RequestInterface $rejected): void;
 }

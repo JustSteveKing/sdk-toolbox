@@ -15,6 +15,11 @@ public function result(Response $response): Member
 - **Result classes** are `final readonly` with constructor-promoted public properties. Optional fields get defaults.
 - **A mismatch** throws `Errors\HydrationException`, naming the API's key.
 - **Without Valinor,** write a static `fromArray()` instead, reading each value with a type check rather than a cast.
+- **Requiring Valinor** passes its cost to the SDK's users: about 2 MB installed, and its per-version PHP constraint caps which PHP the SDK installs on. Mention it before adding it to a small SDK.
+
+## Untyped requests
+
+Give every SDK an escape hatch from its types with `Requests\Untyped\JsonRequest`: `get($path, $query)`, `post($path, $body, idempotencyKey: $key)`, `put()`, `patch()` and `delete()`, each returning the whole decoded body as an array through the same retries and exception mapper. Expose it from the connector or the resources. Only pass an idempotency key to endpoints the API documents as idempotent; none is generated.
 
 ## Pagination
 

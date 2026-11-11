@@ -8,6 +8,7 @@ use Closure;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use SensitiveParameter;
 
 /**
  * The rest of the pipeline, from where a middleware stands.
@@ -24,7 +25,7 @@ final readonly class Next
     /**
      * @throws ClientExceptionInterface
      */
-    public function handle(RequestInterface $request): ResponseInterface
+    public function handle(#[SensitiveParameter] RequestInterface $request): ResponseInterface
     {
         return ($this->next)($request);
     }

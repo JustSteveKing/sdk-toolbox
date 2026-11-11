@@ -4,6 +4,28 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-11
+
+Lessons from rebuilding part of Resend's API on the toolbox, beside Resend's official SDK, and comparing the two. The reliability layer held up; almost everything here is about how it feels to use. It also fixes credentials reaching exceptions' stack traces when PHP keeps trace arguments (see Security), so upgrade even if nothing else here is wanted. One change breaks: idempotency keys are sent bare by default (see Changed).
+
+### Added
+
+- `NoHttpClientException`, in `Errors`, when a connector is built without a client or PSR-17 factories and `php-http/discovery` finds none. `composer require` on an SDK succeeds with nothing installed, because discovery declares that it provides the implementations, so the first sign used to be discovery's own `NotFoundException` from inside the constructor. The new message names the client or factory that's missing and the `composer require` that fixes it; discovery's exception is kept as the previous one. It's a `LogicException`, since no retry fixes a missing package. The `psr/http-client-implementation` and `psr/http-factory-implementation` requirements stay: they're what lets discovery's plugin install a client when it's allowed to.
+- Untyped requests, in `Requests\Untyped`: `JsonRequest::get()`, `post()`, `put()`, `patch()` and `delete()` take arrays and return the whole decoded body (`[]` for an empty one), through the same retries, throttle, cache and exception mapper as a typed request. An SDK can offer them beside its typed resources, so a field or an endpoint it hasn't caught up with is still reachable. `post()` carries an idempotency key only when given one, as `IdempotentJsonBodyRequest`, and never generates one.
+- `RetryPolicy::withoutRetryingWhen(Closure $veto)`: a copy that never retries a response the closure says is final, whatever its status, for APIs whose own error codes know better than the status. Resend uses 409 both for a keyed request still running (retried, as the Idempotency-Key draft suggests) and for a key reused with a different body, which the policy used to retry to the attempt limit. The closure gets the toolbox's `Response`, so it can read the body; it only ever stops a retry, isn't asked when there's no response, and every veto applies when it's called more than once.
+- `Response::replayed()`: true when the API marks the response as the stored answer to an earlier request with the same idempotency key, by `Idempotent-Replayed: true` (Resend, Deliveroo, ePay) or a header named as its argument. The Idempotency-Key draft defines no such header, so it's listed among the conventions in the standards page.
+- `RetryPolicy::interactive()`, for a request someone is waiting on: the same rules about what's safe to retry, but no `Retry-After` over 5 seconds is waited for, backoff is capped at 2 seconds, and the whole sequence ends within 10. `standard()`, the default, is unchanged and suits queued work, where it waits out a `Retry-After` of up to a minute.
+- `StatusExceptions::fromFields(title:, detail:, type:, extensions:)`: the status mapping for an API whose errors are a flat JSON object, by field name rather than a closure. Paths are dotted. `title` marks the body as one of the API's errors; without it, or for a body that isn't JSON, the RFC 9457 problem is used as before. The Todoist and Resend SDKs had each written the same mapper and reader by hand.
+- `SeenDeliveries`, in `Webhooks`: remembers webhook delivery IDs through any PSR-16 cache, so a delivery sent twice is handled once. Verify first, then `firstTime($id)` is true for a new ID and false after, for `ttl` seconds (600 by default, which outlasts the usual 300-second tolerance on both sides of now); `forget($id)` lets a delivery whose handling failed through again. Every verifier accepts the same delivery inside its tolerance, and Standard Webhooks says to deduplicate on `webhook-id`, but every SDK was left to write the storage. PSR-16 has no "set if absent", so two copies at the same moment can both pass; the docblock says so.
+
+### Security
+
+- **Credentials no longer reach exceptions' stack traces.** With `zend.exception_ignore_args` off, as `php.ini-development` and PHP's built-in defaults have it, every frame of a trace keeps its arguments, and a `TransportException`'s trace held the authenticated request (with a query key, a bearer token or a Basic credential in it), the HTTP client's exception, and on the OAuth path the grant's parameters, such as a refresh token or an authorisation code. `print_r()`, `var_dump()`, error pages and error trackers that capture frame arguments showed them. `(string) $e` was never affected, and neither are production ini files, which hide trace arguments; that's how it went unseen, here and in CI. Every parameter on the send path that can hold the authenticated request, a response to it, a pre-signed URL (`sendUnauthenticated()`'s `$uri`) or grant parameters now carries `#[SensitiveParameter]`, including authenticators' `authenticate()` and `refresh()`, the pipeline and its closure, the cache, the deprecation watcher, `OAuthClient::requestToken()` and `post()`, `AuthorizationCode::exchange()`'s code and the Ed25519 secret key helpers. `Testing\FakeClient` dumps only the methods and paths of the requests it recorded. A new test checks every path with trace arguments kept, and CI runs the whole suite that way too. An SDK's own `Authenticator` should do the same; the authentication docs say how.
+
+### Changed
+
+- **Breaking:** idempotency keys are sent bare by default (`Idempotency-Key: 8e03978e-...`), where they used to be the draft's quoted Structured Field String. Stripe, Resend and most APIs in use take a bare key, and sent to one of them the quoted form put the quotes inside the key with no error to say so. An SDK for an API that wants the quoted form passes `idempotencyKeys: IdempotencyKey::Quoted` to the connector; one that already passed `IdempotencyKey::Bare` can drop it. The default had no test of its own, which is how nothing noticed; it has one now.
+
 ## [0.0.9] - 2026-11-08
 
 Feedback from SDKs built on the toolbox against real APIs. Everything already in 0.0.8 behaves as it did: each addition is opt-in.
@@ -124,7 +146,8 @@ The first release.
 - Testing tools: a fake client, fake time and recorded fixtures.
 - An agent skill for building SDKs with the toolbox.
 
-[Unreleased]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.9...HEAD
+[Unreleased]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.9...v0.1.0
 [0.0.9]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.8...v0.0.9
 [0.0.8]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.7...v0.0.8
 [0.0.7]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.6...v0.0.7

@@ -9,6 +9,7 @@ Every exception the toolbox throws implements `SdkException`, so an SDK's caller
 | `InvalidResponseException` | A response that isn't the JSON a request expected |
 | `HydrationException` | JSON that doesn't fit the class you mapped it to |
 | `InvalidRequestException`, `UnsafeUriException` | A request that can't be built safely. Nothing was sent |
+| `NoHttpClientException` | A connector was built without a client or factories, and none is installed ([Getting started](getting-started.md#install)) |
 | `RateLimitExceededException` | The throttle refused to send ([Reliability](reliability.md#the-throttle)) |
 | `OAuthException` | The authorisation server said no ([Authentication](authentication.md)) |
 
@@ -96,7 +97,22 @@ protected function describe(Response $response, ?ProblemDetails $problem): strin
 
 ### APIs without RFC 9457
 
-Most APIs answer errors in a shape of their own: `{"error": "..."}`, an `errors` array, a code and a tag. Give `StatusExceptions` a function that reads that shape into a `ProblemDetails`, and every status exception carries it, whatever the status:
+Most APIs answer errors in a shape of their own: `{"error": "..."}`, an `errors` array, a code and a tag. For the common case, a flat JSON object, name the fields and let `StatusExceptions::fromFields()` read them:
+
+```php
+// Resend: {"statusCode": 422, "name": "validation_error", "message": "..."}
+exceptions: StatusExceptions::fromFields(title: 'name', detail: 'message'),
+
+// Todoist: {"error": "...", "error_code": 477, "error_extra": {"event_id": "..."}}
+exceptions: StatusExceptions::fromFields(title: 'error', extensions: [
+    'code' => 'error_code',
+    'event_id' => 'error_extra.event_id',
+]),
+```
+
+Paths are dotted, as `$response->get()` reads them. `title` is the field that marks a body as one of the API's errors: if it's missing, isn't a string, or the body isn't JSON, nothing is read and the RFC 9457 problem is used if there is one. `detail` and `type` are kept when they're strings, and each extension is kept as it was sent, or null. Both SDKs built on the toolbox against real APIs had written this by hand, mapper and reader, before it existed.
+
+For anything stranger, such as an `errors` array to flatten, give `StatusExceptions` a function that reads the shape into a `ProblemDetails`, and every status exception carries it, whatever the status:
 
 ```php
 parent::__construct(

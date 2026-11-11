@@ -16,6 +16,8 @@ composer require symfony/http-client nyholm/psr7
 
 `php-http/discovery` finds whatever is installed, so nobody has to wire it up. PHP 8.3 or newer.
 
+`composer require` succeeds without a client, because `php-http/discovery` declares that it provides one, and its Composer plugin installs one only when the plugin is allowed to run. A non-interactive install (CI, a Docker build) never asks. So if nothing is installed, the first connector you build throws `NoHttpClientException`, naming what to install. Say so in your SDK's README too: the people installing it are the ones who'll see it.
+
 ## The connector
 
 A connector is the API: where it lives, how to authenticate, and how requests get there. Extend `Connector` and pass the API's details to the parent constructor.

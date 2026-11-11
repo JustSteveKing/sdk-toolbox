@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JustSteveKing\SdkToolbox\Auth;
 
 use Psr\Http\Message\RequestInterface;
+use SensitiveParameter;
 
 /**
  * Adds credentials to a request.
@@ -15,7 +16,7 @@ use Psr\Http\Message\RequestInterface;
  */
 interface Authenticator
 {
-    public function authenticate(RequestInterface $request): RequestInterface;
+    public function authenticate(#[SensitiveParameter] RequestInterface $request): RequestInterface;
 
     /**
      * Header and query parameter names this authenticator writes secrets

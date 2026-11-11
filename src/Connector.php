@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JustSteveKing\SdkToolbox;
 
 use Closure;
+use Http\Discovery\Exception\NotFoundException as DiscoveryNotFound;
 use Http\Discovery\Psr17FactoryDiscovery;
 use Http\Discovery\Psr18ClientDiscovery;
 use JustSteveKing\SdkToolbox\Auth\Authenticate;
@@ -18,6 +19,7 @@ use JustSteveKing\SdkToolbox\Errors\ExceptionMapper;
 use JustSteveKing\SdkToolbox\Errors\HttpException;
 use JustSteveKing\SdkToolbox\Errors\InvalidRequestException;
 use JustSteveKing\SdkToolbox\Errors\InvalidResponseException;
+use JustSteveKing\SdkToolbox\Errors\NoHttpClientException;
 use JustSteveKing\SdkToolbox\Errors\OperationFailedException;
 use JustSteveKing\SdkToolbox\Errors\OperationTimeoutException;
 use JustSteveKing\SdkToolbox\Errors\ProblemDetails;
@@ -68,6 +70,7 @@ use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
+use SensitiveParameter;
 
 /**
  * An API: where it is, how to authenticate, and how to send requests to it.
@@ -86,7 +89,7 @@ use Psr\SimpleCache\CacheInterface;
  */
 class Connector
 {
-    public const string VERSION = '0.0.9';
+    public const string VERSION = '0.1.0';
 
     private readonly BaseUri $baseUri;
 
@@ -114,7 +117,7 @@ class Connector
      * @param  bool  $insecure  allow credentials over plain `http://`, which is refused by default
      * @param  RetryStrategy  $retry  RetryPolicy::standard() unless told otherwise; RetryPolicy::none() turns retries off
      * @param  Throttle|null  $throttle  wait for a spent rate limit to reset before sending, instead of collecting 429s
-     * @param  IdempotencyKey  $idempotencyKeys  how Idempotent requests format their key
+     * @param  IdempotencyKey  $idempotencyKeys  how Idempotent requests format their key: bare unless told otherwise, the form the APIs in use take
      * @param  string  $idempotencyHeader  the header the key goes in: the draft's `Idempotency-Key` unless the API uses another
      * @param  Hydrator|null  $hydrator  maps responses to objects; ValinorHydrator when cuyz/valinor is installed
      * @param  CacheInterface|null  $cache  a PSR-16 store for an RFC 9111 private HTTP cache; no caching without one
@@ -139,7 +142,7 @@ class Connector
         bool $insecure = false,
         private RetryStrategy $retry = new RetryPolicy,
         private readonly ?Throttle $throttle = null,
-        private readonly IdempotencyKey $idempotencyKeys = IdempotencyKey::Quoted,
+        private readonly IdempotencyKey $idempotencyKeys = IdempotencyKey::Bare,
         private readonly ClockInterface $clock = new SystemClock,
         private readonly Sleeper $sleeper = new SystemSleeper,
         ?Hydrator $hydrator = null,
@@ -175,9 +178,9 @@ class Connector
         $sensitive = $auth?->sensitive() ?? ['headers' => [], 'query' => []];
 
         $this->hydrator = $hydrator ?? (ValinorHydrator::available() ? new ValinorHydrator : null);
-        $this->http = $http ?? Psr18ClientDiscovery::find();
-        $this->requests = $requests ?? Psr17FactoryDiscovery::findRequestFactory();
-        $this->streams = $streams ?? Psr17FactoryDiscovery::findStreamFactory();
+        $this->http = $http ?? self::discover(Psr18ClientDiscovery::find(...), 'PSR-18 HTTP client');
+        $this->requests = $requests ?? self::discover(Psr17FactoryDiscovery::findRequestFactory(...), 'PSR-17 request factory');
+        $this->streams = $streams ?? self::discover(Psr17FactoryDiscovery::findStreamFactory(...), 'PSR-17 stream factory');
         $this->redactor = ($redactor ?? new Redactor)->with($sensitive['headers'], $sensitive['query']);
         $this->telemetry = new Telemetry($events, $logger, $this->redactor);
         $this->cache = $cache === null ? null : new HttpCache($cache, $this->clock, $this->redactor, telemetry: $this->telemetry);
@@ -437,7 +440,7 @@ class Connector
      * @throws InvalidRequestException when the request has a query of its own
      * @throws TransportException when no response came back
      */
-    public function sendUnauthenticated(string $uri, Request $request): Response
+    public function sendUnauthenticated(#[SensitiveParameter] string $uri, Request $request): Response
     {
         $target = Uri::parse($uri);
         $shown = $this->redactor->uri($uri);
@@ -619,6 +622,24 @@ class Connector
     /**
      * @return array<string, mixed>
      */
+    /**
+     * php-http/discovery's lookup, with its failure turned into one that
+     * says what to install.
+     *
+     * @template T of object
+     *
+     * @param  Closure(): T  $find
+     * @return T
+     */
+    private static function discover(Closure $find, string $what): object
+    {
+        try {
+            return $find();
+        } catch (DiscoveryNotFound $e) {
+            throw NoHttpClientException::missing($what, $e);
+        }
+    }
+
     public function __debugInfo(): array
     {
         return [
@@ -634,7 +655,7 @@ class Connector
      * next page or an operation monitor, after checking it's still under the
      * base URI, and throws for an error status.
      */
-    private function checked(RequestInterface $psr): Response
+    private function checked(#[SensitiveParameter] RequestInterface $psr): Response
     {
         if (! $this->baseUri->allows((string) $psr->getUri())) {
             throw new UnsafeUriException("Refusing to follow the API outside the base URI: [{$this->redactor->uri((string) $psr->getUri())}].");
@@ -668,7 +689,7 @@ class Connector
     /**
      * @throws TransportException when no response came back
      */
-    private function dispatch(RequestInterface $psr, bool $unauthenticated = false): Response
+    private function dispatch(#[SensitiveParameter] RequestInterface $psr, bool $unauthenticated = false): Response
     {
         try {
             $answer = $this->pipeline($unauthenticated)->sendRequest($psr);

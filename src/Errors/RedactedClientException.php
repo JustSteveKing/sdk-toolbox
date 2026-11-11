@@ -7,6 +7,7 @@ namespace JustSteveKing\SdkToolbox\Errors;
 use JustSteveKing\SdkToolbox\Redaction\Redactor;
 use Psr\Http\Client\ClientExceptionInterface;
 use RuntimeException;
+use SensitiveParameter;
 use Throwable;
 
 /**
@@ -42,7 +43,7 @@ final class RedactedClientException extends RuntimeException implements ClientEx
         $this->line = $line;
     }
 
-    public static function from(Throwable $e, Redactor $redactor, int $depth = 0): self
+    public static function from(#[SensitiveParameter] Throwable $e, Redactor $redactor, int $depth = 0): self
     {
         $previous = $e->getPrevious();
         $class = $e::class;

@@ -24,7 +24,8 @@ Use it when you work on code that requires `juststeveking/sdk-toolbox`: an SDK's
 4. **Don't write retry loops.** Retries are on by default and safe. Implement `Idempotent` on POSTs when the API supports Idempotency-Key, so they can be retried too.
 5. **Don't pass credentials anywhere but an authenticator.** Never put a key in `headers()` or `query()` yourself: the authenticator's names are what the redactor masks.
 6. **Tests use `Testing\FakeClient`,** never a mocked PSR-18 interface. Either pass `retry: RetryPolicy::none()`, or queue the answers a retry will consume and pass `Testing\FakeTime` as `clock:` and `sleeper:`.
-7. **Keep the PHP floor of the SDK you're in.** The toolbox runs on PHP 8.3; if the SDK does too, don't use 8.4 syntax such as `new Foo()->bar()` without parentheses.
+7. **Tell the SDK's users to install a PSR-18 client.** `composer require` on the SDK succeeds without one, and the first connector then throws `Errors\NoHttpClientException`. The SDK's README install section should give `composer require guzzlehttp/guzzle` or `symfony/http-client nyholm/psr7`.
+8. **Keep the PHP floor of the SDK you're in.** The toolbox runs on PHP 8.3; if the SDK does too, don't use 8.4 syntax such as `new Foo()->bar()` without parentheses.
 
 ## Choose the reference for the task
 
