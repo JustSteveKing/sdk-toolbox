@@ -4,7 +4,9 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 
 ## [Unreleased]
 
-Lessons from rebuilding part of Resend's API on the toolbox, beside Resend's official SDK, and comparing the two. The reliability layer held up; almost everything here is about how it feels to use.
+## [0.1.0] - 2026-11-11
+
+Lessons from rebuilding part of Resend's API on the toolbox, beside Resend's official SDK, and comparing the two. The reliability layer held up; almost everything here is about how it feels to use. It also fixes credentials reaching exceptions' stack traces when PHP keeps trace arguments (see Security), so upgrade even if nothing else here is wanted. One change breaks: idempotency keys are sent bare by default (see Changed).
 
 ### Added
 
@@ -144,7 +146,8 @@ The first release.
 - Testing tools: a fake client, fake time and recorded fixtures.
 - An agent skill for building SDKs with the toolbox.
 
-[Unreleased]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.9...HEAD
+[Unreleased]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.9...v0.1.0
 [0.0.9]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.8...v0.0.9
 [0.0.8]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.7...v0.0.8
 [0.0.7]: https://github.com/JustSteveKing/sdk-toolbox/compare/v0.0.6...v0.0.7

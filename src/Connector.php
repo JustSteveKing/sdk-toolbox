@@ -89,7 +89,7 @@ use SensitiveParameter;
  */
 class Connector
 {
-    public const string VERSION = '0.0.9';
+    public const string VERSION = '0.1.0';
 
     private readonly BaseUri $baseUri;
 
