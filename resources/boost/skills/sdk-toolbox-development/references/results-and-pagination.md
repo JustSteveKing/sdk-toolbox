@@ -15,6 +15,7 @@ public function result(Response $response): Member
 - **Result classes** are `final readonly` with constructor-promoted public properties. Optional fields get defaults.
 - **A mismatch** throws `Errors\HydrationException`, naming the API's key.
 - **Without Valinor,** write a static `fromArray()` instead, reading each value with a type check rather than a cast.
+- **Requiring Valinor** passes its cost to the SDK's users: about 2 MB installed, and its per-version PHP constraint caps which PHP the SDK installs on. Mention it before adding it to a small SDK.
 
 ## Untyped requests
 
