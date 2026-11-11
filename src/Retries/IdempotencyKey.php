@@ -21,7 +21,7 @@ enum IdempotencyKey
     /**
      * `Idempotency-Key: 8e03978e-...`: the bare token many APIs, Stripe and
      * Resend among them, have always taken. The connector's default since
-     * 0.0.10: sent to one of those APIs, the quoted form puts the quotes
+     * 0.1.0: sent to one of those APIs, the quoted form puts the quotes
      * inside the key, and nothing says so.
      */
     case Bare;
