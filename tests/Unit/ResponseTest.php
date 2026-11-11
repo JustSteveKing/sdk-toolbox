@@ -40,3 +40,21 @@ it('collects the body, or the part at a dotted path', function (): void {
         ->and($response->collect('missing')->isEmpty())->toBeTrue()
         ->and($response->collect('meta.total')->all())->toBe([2]);
 });
+
+it('tells a replayed response from a fresh one', function (array $headers, bool $replayed): void {
+    expect(response(FakeResponse::json(['id' => 'e_1'], 200, $headers))->replayed())->toBe($replayed);
+})->with([
+    'replayed' => [['Idempotent-Replayed' => 'true'], true],
+    'lowercase, as Resend sends it' => [['idempotent-replayed' => 'true'], true],
+    'capitalised value' => [['Idempotent-Replayed' => 'True'], true],
+    'explicitly not' => [['Idempotent-Replayed' => 'false'], false],
+    'absent' => [[], false],
+    'something else' => [['Idempotent-Replayed' => '1'], false],
+]);
+
+it('reads a replay from the header an API names', function (): void {
+    $response = response(FakeResponse::json([], 200, ['X-Idempotency-Replayed' => 'true']));
+
+    expect($response->replayed())->toBeFalse()
+        ->and($response->replayed('X-Idempotency-Replayed'))->toBeTrue();
+});

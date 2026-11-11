@@ -34,7 +34,7 @@ RFC 9110 also says a client shouldn't automatically retry a failed automatic ret
 
 ### Your own rules
 
-The status rules are right for most APIs, but an API's own error codes can know better. Resend answers 409 both for "a request with this key is still running", which is worth retrying, and for "this key was used with a different body", which fails the same way however often it's sent. `withoutRetryingWhen()` vetoes a retry by reading the response, and leaves every other decision to the policy:
+The status rules are right for most APIs, but an API's own error codes can know better. Resend answers 409 both for "a request with this key is still running", which is worth retrying, and for "this key was used with a different body", which fails the same way however often it's sent. (The Idempotency-Key draft's §2.7 puts that second case at 422, which is never retried; Resend's choice is its own.) `withoutRetryingWhen()` vetoes a retry by reading the response, and leaves every other decision to the policy:
 
 ```php
 retry: RetryPolicy::standard()->withoutRetryingWhen(
@@ -84,6 +84,7 @@ final readonly class CreateCharge implements HasBody, Idempotent, Request
 - **One key per `send()`,** kept for every retry of that send.
 - **The key** is a random UUID unless the request returns its own. Tying it to something of yours, such as an order ID, means a retry after a crash reuses it too.
 - **Never reuse a key with a different payload** (the draft's §2.2).
+- **A replay** is the stored answer to an earlier request with the same key, sent back rather than acted on again. `$response->replayed()` is true when the API says so with `Idempotent-Replayed: true`, the convention Resend, Deliveroo and ePay follow (the draft doesn't define one). Pass the header name for an API with its own, such as `replayed('X-Idempotency-Replayed')`. It's how a caller tells "sent now" from "already sent", say before charging a card or emailing a receipt.
 - **The default format** is the draft's quoted string, `Idempotency-Key: "8e03978e-..."`. Stripe and many others take a bare token: pass `idempotencyKeys: IdempotencyKey::Bare` to the connector.
 - **The header** is the draft's `Idempotency-Key` unless the API names another: Buttondown, for one, wants `X-Idempotency-Key`. Pass `idempotencyHeader: 'X-Idempotency-Key'` to the connector. It tells its `RetryPolicy` too, including one set later with `withRetry()`, so keyed requests are still retried; a custom `RetryStrategy` reads the request itself.
 - **A body field instead of a header,** for an API that takes its deduplication key in the body: pass `idempotencyField: 'dedupe_id'` to the connector. The key, generated or the request's own, goes in that top-level field of the request's `JsonBody` or `FormBody`, replacing any value the body set there, and no header is sent. It's the raw key: `idempotencyKeys` only formats the header. The body is built once per `send()`, so every retry carries the same key, and the connector's `RetryPolicy` is told the field (`withIdempotencyField()`), so a JSON or form body with it counts as keyed and is retried as a keyed request would be. Any other body (raw, multipart, a JSON list) or none at all throws `InvalidRequestException` before anything is sent, since there's no field to put the key in.

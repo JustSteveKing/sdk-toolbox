@@ -243,6 +243,21 @@ final readonly class Response
         );
     }
 
+    /**
+     * Whether the API says this is a stored response to an earlier request
+     * with the same idempotency key, replayed rather than acted on again.
+     *
+     * No standard defines this: the Idempotency-Key draft doesn't say how
+     * a replay is marked. `Idempotent-Replayed: true` is the convention
+     * Resend, Deliveroo and ePay follow; pass another header name for an
+     * API that uses its own (Fiskaly's `X-Idempotency-Replayed`). Absent,
+     * or anything other than `true`, is false.
+     */
+    public function replayed(string $header = 'Idempotent-Replayed'): bool
+    {
+        return strtolower(trim((string) $this->header($header))) === 'true';
+    }
+
     public function psr(): ResponseInterface
     {
         return $this->response;
