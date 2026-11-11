@@ -59,3 +59,7 @@ $http = new Testing\Recorder(__DIR__.'/fixtures', 'projects/list', Testing\Recor
 ## Type checks
 
 Keep a file PHPStan analyses but Pest doesn't, with `PHPStan\Testing\assertType()` calls such as `assertType(Project::class, $sdk->send(new GetProject('x')))`, so a wrong `@implements Request<...>` fails analysis.
+
+## Porting or comparing with another SDK
+
+Before porting, record what the existing SDK does as tests: give it and the new SDK the same fake answers (429 with `Retry-After`, 503 on a POST, 5xx with an error body, an HTML 502, webhook headers in several shapes), run the old one on its real client with only the transport swapped (Guzzle's `MockHandler`), and pin it to an exact version in `require-dev`. Assert what it does, not what you expect it to do.

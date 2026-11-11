@@ -87,6 +87,10 @@ $acme = new Acme(getenv('ACME_TOKEN') ?: 'not-needed-for-replay', $http);
 
 Build the connector in your SDK's tests with `deprecations: Deprecations::strict()`. When the API starts marking an endpoint deprecated, a test that hits it fails, and you hear about it before your users do.
 
+## Against another SDK
+
+Porting an SDK, or comparing one with another? Characterisation tests that give both the same fake answers, with the other SDK on its real client and only the transport swapped, are covered in [Porting](porting.md#before-you-start-record-what-the-old-sdk-does).
+
 ## Type assertions
 
 The toolbox's generics are what make `send(new GetProject($id))` a `Project` to PHPStan. A file of PHPStan type assertions keeps that true as your SDK changes:
