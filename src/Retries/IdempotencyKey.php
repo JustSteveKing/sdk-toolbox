@@ -13,13 +13,16 @@ enum IdempotencyKey
 {
     /**
      * `Idempotency-Key: "8e03978e-..."`: a Structured Field String, as the
-     * draft defines it (section 2.1).
+     * draft defines it (section 2.1). For an API that follows the draft to
+     * the letter; pass it to the connector as `idempotencyKeys`.
      */
     case Quoted;
 
     /**
-     * `Idempotency-Key: 8e03978e-...`: the bare token many APIs, Stripe
-     * among them, have always taken.
+     * `Idempotency-Key: 8e03978e-...`: the bare token many APIs, Stripe and
+     * Resend among them, have always taken. The connector's default since
+     * 0.0.10: sent to one of those APIs, the quoted form puts the quotes
+     * inside the key, and nothing says so.
      */
     case Bare;
 

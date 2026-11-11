@@ -116,7 +116,7 @@ class Connector
      * @param  bool  $insecure  allow credentials over plain `http://`, which is refused by default
      * @param  RetryStrategy  $retry  RetryPolicy::standard() unless told otherwise; RetryPolicy::none() turns retries off
      * @param  Throttle|null  $throttle  wait for a spent rate limit to reset before sending, instead of collecting 429s
-     * @param  IdempotencyKey  $idempotencyKeys  how Idempotent requests format their key
+     * @param  IdempotencyKey  $idempotencyKeys  how Idempotent requests format their key: bare unless told otherwise, the form the APIs in use take
      * @param  string  $idempotencyHeader  the header the key goes in: the draft's `Idempotency-Key` unless the API uses another
      * @param  Hydrator|null  $hydrator  maps responses to objects; ValinorHydrator when cuyz/valinor is installed
      * @param  CacheInterface|null  $cache  a PSR-16 store for an RFC 9111 private HTTP cache; no caching without one
@@ -141,7 +141,7 @@ class Connector
         bool $insecure = false,
         private RetryStrategy $retry = new RetryPolicy,
         private readonly ?Throttle $throttle = null,
-        private readonly IdempotencyKey $idempotencyKeys = IdempotencyKey::Quoted,
+        private readonly IdempotencyKey $idempotencyKeys = IdempotencyKey::Bare,
         private readonly ClockInterface $clock = new SystemClock,
         private readonly Sleeper $sleeper = new SystemSleeper,
         ?Hydrator $hydrator = null,

@@ -29,7 +29,7 @@ Never write a retry loop around `send()`.
 
 When the API supports Idempotency-Key, implement `Requests\Idempotent` on its POST requests. Return a stable key from the caller (an order ID) or null for a random UUID. The same key is sent on every retry of one `send()`.
 
-- **Format:** pass `idempotencyKeys: Retries\IdempotencyKey::Bare` to the connector for APIs, Stripe among them, that want an unquoted key.
+- **Format:** the key is sent bare by default, as Stripe, Resend and most APIs take it. Pass `idempotencyKeys: Retries\IdempotencyKey::Quoted` only for an API that wants the draft's quoted Structured Field String; check the API's docs for which.
 - **Header:** pass `idempotencyHeader: 'X-Idempotency-Key'` for an API that names it differently; the connector keeps its `RetryPolicy` in step.
 - **Body field:** pass `idempotencyField: 'dedupe_id'` for an API that takes the key in the body. The raw key goes in that field of a `JsonBody` or `FormBody`, no header is sent, and retries keep the same key; any other body, or none, throws `Errors\InvalidRequestException`.
 - **Replays:** `$response->replayed()` reads `Idempotent-Replayed: true` (pass another header name if the API uses one); surface it where a caller needs to know "already done", such as from a send or a charge.

@@ -15,6 +15,10 @@ Lessons from rebuilding part of Resend's API on the toolbox, beside Resend's off
 - `RetryPolicy::interactive()`, for a request someone is waiting on: the same rules about what's safe to retry, but no `Retry-After` over 5 seconds is waited for, backoff is capped at 2 seconds, and the whole sequence ends within 10. `standard()`, the default, is unchanged and suits queued work, where it waits out a `Retry-After` of up to a minute.
 - `StatusExceptions::fromFields(title:, detail:, type:, extensions:)`: the status mapping for an API whose errors are a flat JSON object, by field name rather than a closure. Paths are dotted. `title` marks the body as one of the API's errors; without it, or for a body that isn't JSON, the RFC 9457 problem is used as before. The Todoist and Resend SDKs had each written the same mapper and reader by hand.
 
+### Changed
+
+- **Breaking:** idempotency keys are sent bare by default (`Idempotency-Key: 8e03978e-...`), where they used to be the draft's quoted Structured Field String. Stripe, Resend and most APIs in use take a bare key, and sent to one of them the quoted form put the quotes inside the key with no error to say so. An SDK for an API that wants the quoted form passes `idempotencyKeys: IdempotencyKey::Quoted` to the connector; one that already passed `IdempotencyKey::Bare` can drop it. The default had no test of its own, which is how nothing noticed; it has one now.
+
 ## [0.0.9] - 2026-11-08
 
 Feedback from SDKs built on the toolbox against real APIs. Everything already in 0.0.8 behaves as it did: each addition is opt-in.

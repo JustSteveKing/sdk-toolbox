@@ -30,7 +30,7 @@ What the toolbox implements, and how far. "Experimental" marks a draft that is s
 | RFC 7591 Dynamic Client Registration | Proposed Standard | registration, with or without an initial access token; not software statements' signing, or RFC 7592 management |
 | RFC 9700 OAuth Security BCP | Best Current Practice | PKCE everywhere, no implicit grant, single-flight refresh, refresh-token rotation (§4.14.2) |
 | draft-ietf-httpapi-ratelimit-headers-11 | Internet-Draft, expires 2026-11-24 | **experimental:** `RateLimit` and `RateLimit-Policy` read |
-| draft-ietf-httpapi-idempotency-key-header-08 | Internet-Draft | **experimental:** keys sent and kept across retries |
+| draft-ietf-httpapi-idempotency-key-header-08 | Internet-Draft | **experimental:** keys sent and kept across retries; the draft's quoted value (§2.1) as `IdempotencyKey::Quoted`, opt-in, with bare keys the default |
 | draft-ietf-httpapi-privacy | Internet-Draft, in the RFC Editor queue | no credentials over plain HTTP without opting in |
 
 ## W3C and others
