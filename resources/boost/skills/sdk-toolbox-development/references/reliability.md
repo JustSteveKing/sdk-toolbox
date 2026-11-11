@@ -18,7 +18,7 @@ retry: RetryPolicy::standard()->withMaxAttempts(5)->withDeadline(30.0),
 retry: RetryPolicy::none(),
 ```
 
-For API-specific rules, such as "a 429 for an exhausted plan won't clear", implement `Retries\RetryStrategy` and delegate everything else to a `RetryPolicy`.
+For an API error code that must never be retried, whatever its status (Resend's `invalid_idempotent_request` 409, a 429 for an exhausted plan), use `RetryPolicy::standard()->withoutRetryingWhen(fn (Http\Response $response): bool => ...)`. It only vetoes, reading the body is safe, and the status rules still decide everything else. For a different wait or other rules, implement `Retries\RetryStrategy` and delegate the rest to a `RetryPolicy`.
 
 Never write a retry loop around `send()`.
 

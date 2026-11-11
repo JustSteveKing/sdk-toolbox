@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace JustSteveKing\SdkToolbox\Retries;
 
+use Closure;
 use JustSteveKing\SdkToolbox\Errors\InvalidRequestException;
 use JustSteveKing\SdkToolbox\Http\Method;
+use JustSteveKing\SdkToolbox\Http\Response;
 use NoDiscard;
 use Psr\Clock\ClockInterface;
 use Psr\Http\Client\ClientExceptionInterface;
@@ -38,6 +40,13 @@ use Random\Randomizer;
  * - Nothing else is retried: not 400, 401, 404 or 422, which won't change
  *   on their own.
  *
+ * Statuses are the default, but an API's own error codes can know better.
+ * Resend answers 409 both for "a request with this key is still running",
+ * worth retrying, and for "this key was used with a different body",
+ * which fails the same way however often it's sent. withoutRetryingWhen()
+ * lets an SDK veto a retry by reading the response, without replacing the
+ * rules here.
+ *
  * Waits honour `Retry-After` when the server sends one, otherwise back off
  * exponentially with jitter, capped. A `Retry-After` longer than
  * `maxRetryAfter` gives up rather than sleeping for it, and a deadline caps
@@ -62,6 +71,7 @@ final readonly class RetryPolicy implements RetryStrategy
      * @param  float|null  $deadline  seconds the whole sequence may take, waits included
      * @param  string  $idempotencyHeader  the header that marks a request as safe to repeat
      * @param  string|null  $idempotencyField  a JSON or form body field that marks it so, for an API that takes the key in the body
+     * @param  (Closure(Response): bool)|null  $unless  a veto: true for a response that must not be retried, whatever its status
      */
     public function __construct(
         public int $maxAttempts = 3,
@@ -73,6 +83,7 @@ final readonly class RetryPolicy implements RetryStrategy
         private Randomizer $random = new Randomizer,
         public string $idempotencyHeader = 'Idempotency-Key',
         public ?string $idempotencyField = null,
+        private ?Closure $unless = null,
     ) {
         if ($maxAttempts < 1) {
             throw new InvalidRequestException('A retry policy needs at least one attempt.');
@@ -117,6 +128,30 @@ final readonly class RetryPolicy implements RetryStrategy
         return $this->copy(deadline: $seconds, keepDeadline: false);
     }
 
+    /**
+     * A copy that never retries a response the closure says is final,
+     * whatever its status. The closure gets the toolbox's Response, so it
+     * can read the API's own error code from the body:
+     *
+     *     $policy->withoutRetryingWhen(
+     *         fn (Response $response): bool => $response->get('name') === 'invalid_idempotent_request',
+     *     );
+     *
+     * It only ever stops a retry; it can't make one. Called again, both
+     * vetoes apply.
+     *
+     * @param  Closure(Response): bool  $veto
+     */
+    #[NoDiscard]
+    public function withoutRetryingWhen(Closure $veto): self
+    {
+        $existing = $this->unless;
+
+        return $this->copy(unless: $existing === null
+            ? $veto
+            : static fn (Response $response): bool => $existing($response) || $veto($response));
+    }
+
     #[NoDiscard]
     public function withBackoff(float $baseDelay, float $maxDelay): self
     {
@@ -132,6 +167,10 @@ final readonly class RetryPolicy implements RetryStrategy
         ClockInterface $clock,
     ): ?float {
         if ($attempt >= $this->maxAttempts || ! $this->retryable($request, $response, $error)) {
+            return null;
+        }
+
+        if ($response !== null && $this->unless !== null && ($this->unless)(new Response($response, $request, $clock))) {
             return null;
         }
 
@@ -177,6 +216,7 @@ final readonly class RetryPolicy implements RetryStrategy
         ?string $idempotencyHeader = null,
         ?string $idempotencyField = null,
         bool $keepIdempotencyField = true,
+        ?Closure $unless = null,
     ): self {
         return new self(
             maxAttempts: $maxAttempts ?? $this->maxAttempts,
@@ -188,6 +228,7 @@ final readonly class RetryPolicy implements RetryStrategy
             random: $this->random,
             idempotencyHeader: $idempotencyHeader ?? $this->idempotencyHeader,
             idempotencyField: $keepIdempotencyField ? $this->idempotencyField : $idempotencyField,
+            unless: $unless ?? $this->unless,
         );
     }
 

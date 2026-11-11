@@ -34,7 +34,17 @@ RFC 9110 also says a client shouldn't automatically retry a failed automatic ret
 
 ### Your own rules
 
-An API with its own retry rules implements `RetryStrategy`: given the request, the response or error, the attempt number and the time elapsed, return seconds to wait, or null to stop.
+The status rules are right for most APIs, but an API's own error codes can know better. Resend answers 409 both for "a request with this key is still running", which is worth retrying, and for "this key was used with a different body", which fails the same way however often it's sent. `withoutRetryingWhen()` vetoes a retry by reading the response, and leaves every other decision to the policy:
+
+```php
+retry: RetryPolicy::standard()->withoutRetryingWhen(
+    fn (\JustSteveKing\SdkToolbox\Http\Response $response): bool => $response->get('name') === 'invalid_idempotent_request',
+),
+```
+
+The closure gets the toolbox's `Response`, so `get()`, `json()` and `header()` all work, and reading the body doesn't use it up. A veto only stops a retry, it never makes one the status rules wouldn't, and it isn't asked when no response came back at all. Calling it twice applies both, and it survives the other `with*()` methods.
+
+For anything a veto can't say, such as a different wait, an API with its own retry rules implements `RetryStrategy`: given the request, the response or error, the attempt number and the time elapsed, return seconds to wait, or null to stop.
 
 ```php
 final readonly class AcmeRetries implements RetryStrategy
