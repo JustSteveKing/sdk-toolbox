@@ -16,6 +16,10 @@ public function result(Response $response): Member
 - **A mismatch** throws `Errors\HydrationException`, naming the API's key.
 - **Without Valinor,** write a static `fromArray()` instead, reading each value with a type check rather than a cast.
 
+## Untyped requests
+
+Give every SDK an escape hatch from its types with `Requests\Untyped\JsonRequest`: `get($path, $query)`, `post($path, $body, idempotencyKey: $key)`, `put()`, `patch()` and `delete()`, each returning the whole decoded body as an array through the same retries and exception mapper. Expose it from the connector or the resources. Only pass an idempotency key to endpoints the API documents as idempotent; none is generated.
+
 ## Pagination
 
 A list request returns one page's items from `result()`, typed as `Request<list<Item>>`:

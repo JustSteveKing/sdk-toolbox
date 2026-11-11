@@ -36,6 +36,27 @@ A response that doesn't fit throws `HydrationException`, naming the field in the
 
 To use something other than Valinor, implement `Hydrator` (two methods) and pass it to the connector as `hydrator:`. Without Valinor and without a hydrator, `map()` throws and says to install one.
 
+## Untyped requests
+
+Typed results always lag the API a little. Ignoring extra keys means a field the API added last week can't break anything, and it also means nobody can read that field until a property is added for it; an endpoint nobody has wrapped can't be called at all. So give your SDK's users a way round the types from the start. `Requests\Untyped\JsonRequest` takes arrays, written the way the API's own docs write the request, and returns the whole decoded body:
+
+```php
+use JustSteveKing\SdkToolbox\Requests\Untyped\JsonRequest;
+
+$project = $acme->send(JsonRequest::get('/projects/'.rawurlencode($id), ['expand' => 'owner']));
+$project['added_last_week'];
+
+$acme->send(JsonRequest::post('/projects', ['name' => 'Website']));
+$acme->send(JsonRequest::patch('/projects/'.rawurlencode($id), ['name' => 'Site']));
+$acme->send(JsonRequest::delete('/projects/'.rawurlencode($id)));
+```
+
+They go through everything a typed request does: retries and `Retry-After`, the throttle, the cache, authentication, and your exception mapper, so a 404 is still a `NotFoundException`. `put()` and `patch()` send a JSON body, `delete()` sends none, and an empty answer comes back as `[]`. A body that isn't JSON throws `InvalidResponseException`.
+
+**Only a POST given an idempotency key carries one:** `JsonRequest::post('/charges', $charge, idempotencyKey: $key)`. Then it may be retried after a failure the API might have acted on, with the same key every time ([Reliability](reliability.md#idempotency-key)). It's never generated here, as it is for an `Idempotent` request class, because a key is a promise the API has to keep: give one only where the API documents that it honours it.
+
+How you expose them is up to the SDK: a method on the connector, or on each resource. The Resend case study puts typed resources and untyped calls side by side, and found the array form was what made the SDK keep up with the API between releases.
+
 ## Pagination
 
 The same request works for one page and for all of them. Its `result()` reads one page into items:

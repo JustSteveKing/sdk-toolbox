@@ -9,6 +9,7 @@ Lessons from rebuilding part of Resend's API on the toolbox, beside Resend's off
 ### Added
 
 - `NoHttpClientException`, in `Errors`, when a connector is built without a client or PSR-17 factories and `php-http/discovery` finds none. `composer require` on an SDK succeeds with nothing installed, because discovery declares that it provides the implementations, so the first sign used to be discovery's own `NotFoundException` from inside the constructor. The new message names the client or factory that's missing and the `composer require` that fixes it; discovery's exception is kept as the previous one. It's a `LogicException`, since no retry fixes a missing package. The `psr/http-client-implementation` and `psr/http-factory-implementation` requirements stay: they're what lets discovery's plugin install a client when it's allowed to.
+- Untyped requests, in `Requests\Untyped`: `JsonRequest::get()`, `post()`, `put()`, `patch()` and `delete()` take arrays and return the whole decoded body (`[]` for an empty one), through the same retries, throttle, cache and exception mapper as a typed request. An SDK can offer them beside its typed resources, so a field or an endpoint it hasn't caught up with is still reachable. `post()` carries an idempotency key only when given one, as `IdempotentJsonBodyRequest`, and never generates one.
 
 ## [0.0.9] - 2026-11-08
 
