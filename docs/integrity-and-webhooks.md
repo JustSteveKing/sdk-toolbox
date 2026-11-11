@@ -136,3 +136,21 @@ new SignedWebhook($messageVerifier)
 ```
 
 This requires the signature to cover `content-digest`, and checks the digest against the body (RFC 9530 §6.3 pairs the two for exactly this). Without both, the body would be unsigned.
+
+### Duplicate deliveries
+
+A valid signature doesn't make a delivery unique. A sender retries until one attempt succeeds, with the same ID every time, and every verifier here accepts the same delivery again while it's inside the timestamp tolerance. Standard Webhooks says to use `webhook-id` as an idempotency key, and keeps IDs for five minutes in its example. `Webhooks\SeenDeliveries` does that through any PSR-16 cache:
+
+```php
+use JustSteveKing\SdkToolbox\Webhooks\SeenDeliveries;
+
+$seen = new SeenDeliveries($cache);
+
+$id = $webhooks->check($request);
+
+if (! $seen->firstTime($id)) {
+    return;   // already handled: acknowledge it, and do nothing
+}
+```
+
+IDs are kept for ten minutes by default (`ttl:`), which has to outlast the verifier's tolerance on both sides of now. If handling fails after `firstTime()` said yes, `forget($id)` lets the sender's retry through. PSR-16 has no "set if absent", so two copies arriving on two workers at the same moment can both be told they're first: where a double run would do harm, make the work itself idempotent too, with a unique index on the event ID. Needs `psr/simple-cache`.
