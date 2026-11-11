@@ -4,6 +4,12 @@ Every notable change to this package. The format follows [Keep a Changelog](http
 
 ## [Unreleased]
 
+Lessons from rebuilding part of Resend's API on the toolbox, beside Resend's official SDK, and comparing the two. The reliability layer held up; almost everything here is about how it feels to use.
+
+### Added
+
+- `NoHttpClientException`, in `Errors`, when a connector is built without a client or PSR-17 factories and `php-http/discovery` finds none. `composer require` on an SDK succeeds with nothing installed, because discovery declares that it provides the implementations, so the first sign used to be discovery's own `NotFoundException` from inside the constructor. The new message names the client or factory that's missing and the `composer require` that fixes it; discovery's exception is kept as the previous one. It's a `LogicException`, since no retry fixes a missing package. The `psr/http-client-implementation` and `psr/http-factory-implementation` requirements stay: they're what lets discovery's plugin install a client when it's allowed to.
+
 ## [0.0.9] - 2026-11-08
 
 Feedback from SDKs built on the toolbox against real APIs. Everything already in 0.0.8 behaves as it did: each addition is opt-in.

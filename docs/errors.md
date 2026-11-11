@@ -9,6 +9,7 @@ Every exception the toolbox throws implements `SdkException`, so an SDK's caller
 | `InvalidResponseException` | A response that isn't the JSON a request expected |
 | `HydrationException` | JSON that doesn't fit the class you mapped it to |
 | `InvalidRequestException`, `UnsafeUriException` | A request that can't be built safely. Nothing was sent |
+| `NoHttpClientException` | A connector was built without a client or factories, and none is installed ([Getting started](getting-started.md#install)) |
 | `RateLimitExceededException` | The throttle refused to send ([Reliability](reliability.md#the-throttle)) |
 | `OAuthException` | The authorisation server said no ([Authentication](authentication.md)) |
 

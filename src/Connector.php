@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JustSteveKing\SdkToolbox;
 
 use Closure;
+use Http\Discovery\Exception\NotFoundException as DiscoveryNotFound;
 use Http\Discovery\Psr17FactoryDiscovery;
 use Http\Discovery\Psr18ClientDiscovery;
 use JustSteveKing\SdkToolbox\Auth\Authenticate;
@@ -18,6 +19,7 @@ use JustSteveKing\SdkToolbox\Errors\ExceptionMapper;
 use JustSteveKing\SdkToolbox\Errors\HttpException;
 use JustSteveKing\SdkToolbox\Errors\InvalidRequestException;
 use JustSteveKing\SdkToolbox\Errors\InvalidResponseException;
+use JustSteveKing\SdkToolbox\Errors\NoHttpClientException;
 use JustSteveKing\SdkToolbox\Errors\OperationFailedException;
 use JustSteveKing\SdkToolbox\Errors\OperationTimeoutException;
 use JustSteveKing\SdkToolbox\Errors\ProblemDetails;
@@ -175,9 +177,9 @@ class Connector
         $sensitive = $auth?->sensitive() ?? ['headers' => [], 'query' => []];
 
         $this->hydrator = $hydrator ?? (ValinorHydrator::available() ? new ValinorHydrator : null);
-        $this->http = $http ?? Psr18ClientDiscovery::find();
-        $this->requests = $requests ?? Psr17FactoryDiscovery::findRequestFactory();
-        $this->streams = $streams ?? Psr17FactoryDiscovery::findStreamFactory();
+        $this->http = $http ?? self::discover(Psr18ClientDiscovery::find(...), 'PSR-18 HTTP client');
+        $this->requests = $requests ?? self::discover(Psr17FactoryDiscovery::findRequestFactory(...), 'PSR-17 request factory');
+        $this->streams = $streams ?? self::discover(Psr17FactoryDiscovery::findStreamFactory(...), 'PSR-17 stream factory');
         $this->redactor = ($redactor ?? new Redactor)->with($sensitive['headers'], $sensitive['query']);
         $this->telemetry = new Telemetry($events, $logger, $this->redactor);
         $this->cache = $cache === null ? null : new HttpCache($cache, $this->clock, $this->redactor, telemetry: $this->telemetry);
@@ -619,6 +621,24 @@ class Connector
     /**
      * @return array<string, mixed>
      */
+    /**
+     * php-http/discovery's lookup, with its failure turned into one that
+     * says what to install.
+     *
+     * @template T of object
+     *
+     * @param  Closure(): T  $find
+     * @return T
+     */
+    private static function discover(Closure $find, string $what): object
+    {
+        try {
+            return $find();
+        } catch (DiscoveryNotFound $e) {
+            throw NoHttpClientException::missing($what, $e);
+        }
+    }
+
     public function __debugInfo(): array
     {
         return [
