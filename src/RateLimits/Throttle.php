@@ -17,6 +17,7 @@ use NoDiscard;
 use Psr\Clock\ClockInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use SensitiveParameter;
 
 /**
  * Stops sending once the API says the quota is spent, until it resets.
@@ -54,7 +55,7 @@ final readonly class Throttle implements Middleware
         return new self($this->store, $this->maxWait, $this->clock, $this->sleeper, $telemetry);
     }
 
-    public function handle(RequestInterface $request, Next $next): ResponseInterface
+    public function handle(#[SensitiveParameter] RequestInterface $request, Next $next): ResponseInterface
     {
         $key = $this->key($request);
         $until = $this->store->exhaustedUntil($key);

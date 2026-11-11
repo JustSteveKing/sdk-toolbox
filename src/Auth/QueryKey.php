@@ -23,7 +23,7 @@ final readonly class QueryKey implements Authenticator
         private string $key,
     ) {}
 
-    public function authenticate(RequestInterface $request): RequestInterface
+    public function authenticate(#[SensitiveParameter] RequestInterface $request): RequestInterface
     {
         $uri = $request->getUri();
         $key = QueryString::build([$this->parameter => $this->key]);

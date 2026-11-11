@@ -150,7 +150,7 @@ final readonly class OAuthClient
      * @throws OAuthException when the server refuses
      * @throws TransportException when it can't be reached
      */
-    public function requestToken(array $parameters, array $scopes = []): AccessToken
+    public function requestToken(#[SensitiveParameter] array $parameters, array $scopes = []): AccessToken
     {
         return AccessToken::fromResponse($this->post($this->tokenEndpoint, $parameters), $this->clock, $scopes, $this->scopeSeparator);
     }
@@ -165,7 +165,7 @@ final readonly class OAuthClient
      * @throws OAuthException for an error response, or one that isn't JSON
      * @throws TransportException when the server can't be reached
      */
-    public function post(string $endpoint, array $parameters): array
+    public function post(string $endpoint, #[SensitiveParameter] array $parameters): array
     {
         $response = $this->send($endpoint, $parameters);
 
@@ -258,7 +258,7 @@ final readonly class OAuthClient
      *
      * @throws TransportException when the server can't be reached
      */
-    private function send(string $endpoint, array $parameters): ResponseInterface
+    private function send(string $endpoint, #[SensitiveParameter] array $parameters): ResponseInterface
     {
         $headers = ['Accept' => 'application/json', 'Content-Type' => 'application/x-www-form-urlencoded'];
 

@@ -11,6 +11,7 @@ use Psr\Http\Client\NetworkExceptionInterface;
 use Psr\Http\Client\RequestExceptionInterface;
 use Psr\Http\Message\RequestInterface;
 use RuntimeException;
+use SensitiveParameter;
 
 /**
  * No response came back: the PSR-18 client couldn't send the request or
@@ -32,7 +33,7 @@ final class TransportException extends RuntimeException implements SdkException
         parent::__construct($message, previous: $previous);
     }
 
-    public static function from(ClientExceptionInterface $e, RequestInterface $request, Redactor $redactor): self
+    public static function from(#[SensitiveParameter] ClientExceptionInterface $e, #[SensitiveParameter] RequestInterface $request, Redactor $redactor): self
     {
         // The client's own request is the one that failed: authenticated, and
         // changed by any middleware since the connector built it.

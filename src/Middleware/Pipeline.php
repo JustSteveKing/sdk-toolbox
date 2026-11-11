@@ -7,6 +7,7 @@ namespace JustSteveKing\SdkToolbox\Middleware;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use SensitiveParameter;
 
 /**
  * Middleware in front of a PSR-18 client, and itself a PSR-18 client.
@@ -25,12 +26,12 @@ final readonly class Pipeline implements ClientInterface
         private array $middleware = [],
     ) {}
 
-    public function sendRequest(RequestInterface $request): ResponseInterface
+    public function sendRequest(#[SensitiveParameter] RequestInterface $request): ResponseInterface
     {
         $next = new Next($this->client->sendRequest(...));
 
         foreach (array_reverse($this->middleware) as $middleware) {
-            $next = new Next(static fn (RequestInterface $request): ResponseInterface => $middleware->handle($request, $next));
+            $next = new Next(static fn (#[SensitiveParameter] RequestInterface $request): ResponseInterface => $middleware->handle($request, $next));
         }
 
         return $next->handle($request);

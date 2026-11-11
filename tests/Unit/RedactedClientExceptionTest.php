@@ -18,7 +18,7 @@ use Psr\Http\Message\RequestInterface;
  * A client that fails the way Guzzle's does: its message quotes the whole
  * URL, key included, and the cause underneath does too.
  */
-function failingClient(string $key): FakeClient
+function failingClient(#[SensitiveParameter] string $key): FakeClient
 {
     return new FakeClient(static function (RequestInterface $request) use ($key): never {
         $cause = new RuntimeException("curl: (6) Could not resolve host for https://api.example.com/ping?api_key={$key}", 6);
@@ -38,7 +38,7 @@ function failingClient(string $key): FakeClient
     });
 }
 
-function transportFailure(string $key): TransportException
+function transportFailure(#[SensitiveParameter] string $key): TransportException
 {
     $connector = new Connector('https://api.example.com', auth: new QueryKey('api_key', $key), http: failingClient($key), retry: RetryPolicy::none());
 

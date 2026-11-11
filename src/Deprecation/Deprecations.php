@@ -13,6 +13,7 @@ use JustSteveKing\SdkToolbox\Observability\Telemetry;
 use JustSteveKing\SdkToolbox\Redaction\Redactor;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use SensitiveParameter;
 
 /**
  * Tells you when the API says an endpoint is deprecated or being sunset.
@@ -58,7 +59,7 @@ final class Deprecations implements Middleware
         return new self(static fn (DeprecationNotice $notice): never => throw new DeprecatedEndpointException($notice));
     }
 
-    public function handle(RequestInterface $request, Next $next): ResponseInterface
+    public function handle(#[SensitiveParameter] RequestInterface $request, Next $next): ResponseInterface
     {
         $response = $next->handle($request);
         $notice = DeprecationNotice::from($request, $response, $this->redactor);

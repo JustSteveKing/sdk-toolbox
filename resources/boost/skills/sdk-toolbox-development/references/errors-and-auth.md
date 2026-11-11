@@ -29,6 +29,7 @@ No response at all is `Errors\TransportException`.
   exceptions: new ProblemTypes(['https://api.test/problems/out-of-credit' => OutOfCredit::class]),
   ```
 
+- **A custom `Auth\Authenticator`** marks the request parameter of `authenticate()` (and `refresh()`) with `#[\SensitiveParameter]`, keeps secrets in `#[\SensitiveParameter]` constructor parameters, and defines `__debugInfo()`, so a credential can't reach an exception's trace arguments or a dump.
 - **For an API with a flat JSON error** (`{"name": "...", "message": "..."}`), pass `exceptions: Errors\StatusExceptions::fromFields(title: 'name', detail: 'message', extensions: ['code' => 'error_code'])`, with dotted paths for nested fields. Read them back with `$e->problem->title` and `$e->problem->extension('code')`.
 - **For any other error format,** pass `exceptions: new Errors\StatusExceptions(problems: fn (Response $r): ?ProblemDetails => ...)`: the function reads the body into a `ProblemDetails` (put codes and tags in `extensions`), and every status exception carries it. Write an `Errors\ExceptionMapper` only to map some errors to your own exception classes, falling back to that `StatusExceptions`.
 

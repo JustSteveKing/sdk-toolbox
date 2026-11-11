@@ -23,7 +23,7 @@ final readonly class BasicAuth implements Authenticator
         }
     }
 
-    public function authenticate(RequestInterface $request): RequestInterface
+    public function authenticate(#[SensitiveParameter] RequestInterface $request): RequestInterface
     {
         return $request->withHeader('Authorization', 'Basic '.base64_encode("{$this->username}:{$this->password}"));
     }

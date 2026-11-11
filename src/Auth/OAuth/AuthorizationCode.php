@@ -7,6 +7,7 @@ namespace JustSteveKing\SdkToolbox\Auth\OAuth;
 use JustSteveKing\SdkToolbox\Errors\InvalidRequestException;
 use JustSteveKing\SdkToolbox\Errors\OAuthException;
 use JustSteveKing\SdkToolbox\Http\QueryString;
+use SensitiveParameter;
 
 /**
  * The authorisation code grant (RFC 6749 section 4.1) with PKCE, for an
@@ -64,7 +65,7 @@ final readonly class AuthorizationCode
      *
      * @throws OAuthException `invalid_state` when the state doesn't match, or the server's error
      */
-    public function exchange(AuthorizationRequest $started, string $code, string $state, array $scopes = []): AccessToken
+    public function exchange(AuthorizationRequest $started, #[SensitiveParameter] string $code, string $state, array $scopes = []): AccessToken
     {
         if (! hash_equals($started->state, $state)) {
             throw new OAuthException('invalid_state', 'The state returned doesn\'t match the one sent; the response may be forged.');

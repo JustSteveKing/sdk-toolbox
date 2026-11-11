@@ -8,6 +8,7 @@ use JustSteveKing\SdkToolbox\Http\Uri;
 use NoDiscard;
 use Psr\Http\Message\MessageInterface;
 use Psr\Http\Message\RequestInterface;
+use SensitiveParameter;
 
 /**
  * Keeps credentials out of exceptions, logs and dumps.
@@ -125,7 +126,7 @@ final readonly class Redactor
         return $headers;
     }
 
-    public function request(RequestInterface $request): RequestSnapshot
+    public function request(#[SensitiveParameter] RequestInterface $request): RequestSnapshot
     {
         return new RequestSnapshot(
             method: $request->getMethod(),

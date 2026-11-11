@@ -70,6 +70,7 @@ use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\StreamFactoryInterface;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
+use SensitiveParameter;
 
 /**
  * An API: where it is, how to authenticate, and how to send requests to it.
@@ -439,7 +440,7 @@ class Connector
      * @throws InvalidRequestException when the request has a query of its own
      * @throws TransportException when no response came back
      */
-    public function sendUnauthenticated(string $uri, Request $request): Response
+    public function sendUnauthenticated(#[SensitiveParameter] string $uri, Request $request): Response
     {
         $target = Uri::parse($uri);
         $shown = $this->redactor->uri($uri);
@@ -654,7 +655,7 @@ class Connector
      * next page or an operation monitor, after checking it's still under the
      * base URI, and throws for an error status.
      */
-    private function checked(RequestInterface $psr): Response
+    private function checked(#[SensitiveParameter] RequestInterface $psr): Response
     {
         if (! $this->baseUri->allows((string) $psr->getUri())) {
             throw new UnsafeUriException("Refusing to follow the API outside the base URI: [{$this->redactor->uri((string) $psr->getUri())}].");
@@ -688,7 +689,7 @@ class Connector
     /**
      * @throws TransportException when no response came back
      */
-    private function dispatch(RequestInterface $psr, bool $unauthenticated = false): Response
+    private function dispatch(#[SensitiveParameter] RequestInterface $psr, bool $unauthenticated = false): Response
     {
         try {
             $answer = $this->pipeline($unauthenticated)->sendRequest($psr);

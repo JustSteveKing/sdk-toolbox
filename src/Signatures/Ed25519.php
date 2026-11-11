@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JustSteveKing\SdkToolbox\Signatures;
 
 use JustSteveKing\SdkToolbox\Errors\InvalidRequestException;
+use SensitiveParameter;
 
 /**
  * Turns the ways an Ed25519 key arrives (raw, base64, PEM) into the raw
@@ -20,7 +21,7 @@ final class Ed25519
      *
      * @return non-empty-string
      */
-    public static function secretKey(string $key): string
+    public static function secretKey(#[SensitiveParameter] string $key): string
     {
         $raw = self::raw($key, 'PRIVATE KEY');
 
@@ -48,7 +49,7 @@ final class Ed25519
         return $raw;
     }
 
-    private static function raw(string $key, string $label): string
+    private static function raw(#[SensitiveParameter] string $key, string $label): string
     {
         if (! str_contains($key, "-----BEGIN {$label}-----")) {
             return $key;

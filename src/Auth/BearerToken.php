@@ -18,7 +18,7 @@ final readonly class BearerToken implements Authenticator
         private string $token,
     ) {}
 
-    public function authenticate(RequestInterface $request): RequestInterface
+    public function authenticate(#[SensitiveParameter] RequestInterface $request): RequestInterface
     {
         return $request->withHeader('Authorization', "Bearer {$this->token}");
     }

@@ -13,6 +13,7 @@ use JustSteveKing\SdkToolbox\Redaction\Redactor;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use SensitiveParameter;
 
 /**
  * Records real API responses once, then replays them in tests.
@@ -80,7 +81,7 @@ final class Recorder implements ClientInterface
         }
     }
 
-    public function sendRequest(RequestInterface $request): ResponseInterface
+    public function sendRequest(#[SensitiveParameter] RequestInterface $request): ResponseInterface
     {
         return $this->recording ? $this->record($request) : $this->replay($request);
     }
@@ -90,7 +91,7 @@ final class Recorder implements ClientInterface
         return $this->recording;
     }
 
-    private function replay(RequestInterface $request): ResponseInterface
+    private function replay(#[SensitiveParameter] RequestInterface $request): ResponseInterface
     {
         $interaction = $this->interactions[$this->position] ?? null;
         $this->position++;
@@ -151,7 +152,7 @@ final class Recorder implements ClientInterface
         return $pairs;
     }
 
-    private function record(RequestInterface $request): ResponseInterface
+    private function record(#[SensitiveParameter] RequestInterface $request): ResponseInterface
     {
         $client = $this->client ?? Psr18ClientDiscovery::find();
         $response = $client->sendRequest($request);

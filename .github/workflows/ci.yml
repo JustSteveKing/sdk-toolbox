@@ -51,6 +51,27 @@ jobs:
 
       - run: vendor/bin/pest
 
+  trace-arguments:
+    # php.ini-development and PHP's built-in defaults keep every frame's
+    # arguments in exception traces; production ini files, setup-php's
+    # included, hide them. Credentials leaked through them unseen until
+    # 0.1.0, so the suite also runs the way a development machine would.
+    name: PHP 8.5 (trace arguments kept)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          coverage: none
+          ini-values: zend.exception_ignore_args=Off, zend.exception_string_param_max_len=15
+
+      - uses: ramsey/composer-install@v4
+
+      - run: vendor/bin/pest
+
   static-analysis:
     name: PHPStan
     runs-on: ubuntu-latest

@@ -7,6 +7,7 @@ namespace JustSteveKing\SdkToolbox\Middleware;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use SensitiveParameter;
 
 /**
  * One step between the connector and the HTTP client.
@@ -21,5 +22,5 @@ interface Middleware
     /**
      * @throws ClientExceptionInterface when no response came back
      */
-    public function handle(RequestInterface $request, Next $next): ResponseInterface;
+    public function handle(#[SensitiveParameter] RequestInterface $request, Next $next): ResponseInterface;
 }

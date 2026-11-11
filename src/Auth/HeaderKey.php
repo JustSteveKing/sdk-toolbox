@@ -19,7 +19,7 @@ final readonly class HeaderKey implements Authenticator
         private string $key,
     ) {}
 
-    public function authenticate(RequestInterface $request): RequestInterface
+    public function authenticate(#[SensitiveParameter] RequestInterface $request): RequestInterface
     {
         return $request->withHeader($this->header, $this->key);
     }

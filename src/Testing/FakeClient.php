@@ -10,6 +10,7 @@ use PHPUnit\Framework\Assert;
 use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use SensitiveParameter;
 
 /**
  * A PSR-18 client for tests: answers from a queue, in order, and records
@@ -54,7 +55,7 @@ final class FakeClient implements ClientInterface
         return $this;
     }
 
-    public function sendRequest(RequestInterface $request): ResponseInterface
+    public function sendRequest(#[SensitiveParameter] RequestInterface $request): ResponseInterface
     {
         $this->sent[] = $request;
         $next = array_shift($this->queue);
@@ -167,6 +168,22 @@ final class FakeClient implements ClientInterface
     public function assertQueueEmpty(): void
     {
         self::assert($this->queue === [], sprintf('%d fake responses were never used.', count($this->queue)));
+    }
+
+    /**
+     * What a dump shows: each request sent as its method and path, and how
+     * many answers are left. The requests themselves are authenticated, and
+     * a dump of the client can end up in a test log through an exception's
+     * trace, so their headers, query and body stay out of it.
+     *
+     * @return array{sent: list<string>, queued: int}
+     */
+    public function __debugInfo(): array
+    {
+        return [
+            'sent' => array_map(static fn (RequestInterface $r): string => "{$r->getMethod()} {$r->getUri()->getPath()}", $this->sent),
+            'queued' => count($this->queue),
+        ];
     }
 
     /**

@@ -34,6 +34,8 @@ The sensitive names start with:
 
 An authenticator adds whatever header or parameter it writes to, and you can pass your own `Redactor` with more names.
 
+That includes exceptions' stack traces. With `zend.exception_ignore_args` off, as `php.ini-development` and PHP's built-in defaults have it, every frame of a trace keeps its arguments, and `print_r()`, `var_dump()`, error pages and error trackers that capture frames show them. So every parameter that can hold the authenticated request, a response to it, a pre-signed URL or an OAuth grant's parameters carries `#[SensitiveParameter]`, down the whole send path, and appears in a trace as a `SensitiveParameterValue`. `Testing\FakeClient`, which records the authenticated requests it was sent, dumps only their methods and paths. `tests/Unit/TraceArgumentsTest.php` checks it with arguments kept, whatever the machine's ini says. Until 0.1.0 a transport failure's trace held the authenticated request and, on the OAuth path, the grant's parameters: production ini files hide trace arguments, which is why it went unseen.
+
 That includes the exception chain. A `TransportException` keeps the HTTP client's own exception as `getPrevious()` because it's the useful part when debugging, but as a `RedactedClientException`: the client's class, code, file and line, and its message masked, down through any exceptions it wraps. Clients such as Guzzle quote the whole URL in their messages, and a log that writes out the chain would otherwise carry a key sent in the query string. Until 0.0.8 the original was kept unmasked.
 
 ## Nothing is unserialized
