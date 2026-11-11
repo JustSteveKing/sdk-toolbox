@@ -104,6 +104,19 @@ final readonly class RetryPolicy implements RetryStrategy
         return new self(maxAttempts: 1);
     }
 
+    /**
+     * For a request someone is waiting on: a web request, a CLI command a
+     * person ran. The same rules about what's safe to retry, but it gives
+     * up sooner: a `Retry-After` over 5 seconds isn't waited for, backoff
+     * is capped at 2 seconds, and the whole sequence, waits included, ends
+     * within 10. The default, standard(), suits queued work, where waiting
+     * a minute for a rate limit to clear is better than failing the job.
+     */
+    public static function interactive(): self
+    {
+        return new self(maxDelay: 2.0, maxRetryAfter: 5.0, deadline: 10.0);
+    }
+
     #[NoDiscard]
     public function withIdempotencyHeader(string $header): self
     {

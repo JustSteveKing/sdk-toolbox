@@ -15,8 +15,11 @@ Configure on the connector:
 
 ```php
 retry: RetryPolicy::standard()->withMaxAttempts(5)->withDeadline(30.0),
+retry: RetryPolicy::interactive(),
 retry: RetryPolicy::none(),
 ```
+
+`standard()` suits queued work (`Retry-After` waited out up to 60s); `interactive()` suits code a person is waiting on (up to 5s, everything done within 10s). Always let the SDK's caller pass their own `RetryStrategy`, and say in the README which preset fits where.
 
 For an API error code that must never be retried, whatever its status (Resend's `invalid_idempotent_request` 409, a 429 for an exhausted plan), use `RetryPolicy::standard()->withoutRetryingWhen(fn (Http\Response $response): bool => ...)`. It only vetoes, reading the body is safe, and the status rules still decide everything else. For a different wait or other rules, implement `Retries\RetryStrategy` and delegate the rest to a `RetryPolicy`.
 

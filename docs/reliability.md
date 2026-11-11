@@ -13,6 +13,16 @@ Retries are on by default. They follow the one rule that makes retrying safe, RF
 
 So a GET that hits a 502 is tried again, and a POST that hits a 502 isn't, because the first attempt may have created something.
 
+### Where the request runs
+
+The default, `RetryPolicy::standard()`, suits queued work: three attempts, and a `Retry-After` of up to a minute waited out, because waiting for a rate limit to clear is better than failing the job. Inside a web request, with a person watching a spinner, a minute is a long time, and failing fast is a reasonable choice. `RetryPolicy::interactive()` keeps the same rules about what's safe but gives up sooner: no `Retry-After` over 5 seconds, backoff capped at 2, and the whole sequence done within 10.
+
+```php
+new Acme($token, retry: RetryPolicy::interactive());
+```
+
+An SDK can't know where it's called from, so let the caller choose: take a `RetryStrategy` in the connector's constructor, and say in your README which preset suits which kind of code. The Resend case study found this was one of the ways an official SDK that never retries can feel better to use: it does nothing the caller didn't ask for.
+
 ### How long it waits
 
 - **`Retry-After`** is honoured, as seconds or as an HTTP-date in any of the three forms RFC 9110 §5.6.7 allows. Some APIs send `retry-after-ms` for sub-second waits; it's read only when `Retry-After` is absent.
